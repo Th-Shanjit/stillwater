@@ -1,37 +1,346 @@
 [
   {
-    "dayIndex": 1,
-    "theme": "undivided_heart",
+    "id": "daily_01",
+    "category": "daily",
     "tracks": {
       "scripture": {
-        "source": "Psalm 86:11",
-        "excerpt": "Give me an undivided heart, that I may walk in your truth.",
-        "reflection": "Most urges do not come from malice—they come from a scattered, tired mind looking for an exit. Today does not ask for perfection; it only asks for your attention in the hour in front of you.",
+        "source": "Psalm 86:11 · BSB",
+        "excerpt": "Give me an undivided heart, that I may fear Your name.",
+        "reflection": "Most urges do not come from malice—they come from a scattered, tired mind looking for an exit. Today asks for your attention in the hour in front of you, not flawless willpower for a lifetime.",
         "intentionPrompt": "What is one small boundary that will keep your evening quiet?"
       },
       "liturgical": {
         "source": "Psalm 86 · Morning Watch",
-        "excerpt": "Unite my heart, O Lord, to walk steadily before you.",
-        "reflection": "The early desert fathers taught that a divided mind is easily pulled by passing noise. Begin this morning slowly, offering the ordinary hours ahead before the rush takes over.",
+        "excerpt": "Unite my heart, O Lord, to walk steadily in Your truth.",
+        "reflection": "The early desert fathers observed that a divided mind is easily pulled by passing noise. Begin this morning unhurried, offering the ordinary hours ahead before haste takes over.",
         "intentionPrompt": "Name one stillness boundary you will hold tonight."
       }
     }
   },
   {
-    "dayIndex": 2,
-    "theme": "new_mercies",
+    "id": "daily_02",
+    "category": "daily",
     "tracks": {
       "scripture": {
-        "source": "Lamentations 3:22-23",
-        "excerpt": "His compassions never fail. They are new every morning.",
-        "reflection": "Yesterday is closed. Whether it was steady or hard, you do not have to carry its ledger into today. Grace meets you at the start of the day, not after you prove yourself.",
-        "intentionPrompt": "Where can you protect your energy before tonight arrives?"
+        "source": "Psalm 23:2-3 · BSB",
+        "excerpt": "He leads me beside quiet waters. He restores my soul.",
+        "reflection": "Restoration rarely happens by clenching your fists harder. Slow down enough today to notice where you are genuinely thirsty, rather than settling for quick numbing.",
+        "intentionPrompt": "Where can you build ten quiet minutes into this afternoon?"
       },
       "liturgical": {
-        "source": "Lamentations 3 · Lauds",
-        "excerpt": "The steadfast love of the Lord never ceases; his mercies are fresh at dawn.",
-        "reflection": "Receive this morning as an uncluttered table. Practice simple watchfulness today—notice fatigue early, before it masquerades as craving.",
+        "source": "Psalm 23 · Lauds",
+        "excerpt": "Beside still waters He leads me and restores my tired soul.",
+        "reflection": "Practice simple watchfulness today—notice fatigue early, before it disguises itself as craving. Rest is an act of stewardship, not laziness.",
         "intentionPrompt": "Choose one ordinary way to rest when stress peaks today."
+      }
+    }
+  },
+  {
+    "id": "daily_03",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "1 Corinthians 10:13 · BSB",
+        "excerpt": "When you are tempted, He will also provide an escape, so that you can stand up under it.",
+        "reflection": "Notice the wording: an escape, not a fistfight. You do not win against compulsive loops by arguing with them at midnight—you win by stepping out of the room.",
+        "intentionPrompt": "Decide your physical exit now before tonight arrives."
+      },
+      "liturgical": {
+        "source": "1 Corinthians 10 · Custody of the Senses",
+        "excerpt": "With the trial, He provides the way of escape.",
+        "reflection": "Evagrius taught that an initial thought knocking at the door is not sin—it is weather. Step away from the threshold before curiosity turns into habit.",
+        "intentionPrompt": "What screen or app needs a clear cutoff hour tonight?"
+      }
+    }
+  },
+  {
+    "id": "daily_04",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Matthew 11:28 · BSB",
+        "excerpt": "Come to Me, all you who are weary and burdened, and I will give you rest.",
+        "reflection": "Compulsive habits thrive when you treat yourself like a machine that should never tire. Honesty about exhaustion is often the first honest prayer of the day.",
+        "intentionPrompt": "What heavy obligation can you set down after work today?"
+      },
+      "liturgical": {
+        "source": "Matthew 11 · Morning Offering",
+        "excerpt": "Come to Me, all who labor and are heavy laden, and I will give you rest.",
+        "reflection": "Offer your actual energy level today—not the version of yourself you wish you were. Grace works with real fatigue, never pretended strength.",
+        "intentionPrompt": "Set a firm time to stop working and close your screens tonight."
+      }
+    }
+  },
+  {
+    "id": "daily_05",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 46:10 · BSB",
+        "excerpt": "Be still and know that I am God.",
+        "reflection": "The nervous system mistakes constant scrolling for safety. Six slow breaths break the illusion that you have to obey every impulse the second it fires.",
+        "intentionPrompt": "Pause for 60 seconds before opening social feeds today."
+      },
+      "liturgical": {
+        "source": "Psalm 46 · Nepsis",
+        "excerpt": "Be still, and know that I am God.",
+        "reflection": "Watchfulness is quiet, never frantic. Stay attentive to the shift from boredom into autopilot, and meet it with stillness rather than panic.",
+        "intentionPrompt": "Where will you keep your phone while you sleep tonight?"
+      }
+    }
+  },
+  {
+    "id": "daily_06",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 139:23 · BSB",
+        "excerpt": "Search me, O God, and know my heart; test me and know my anxious thoughts.",
+        "reflection": "Secrecy shrinks your world down to a dark screen. Bringing anxious thoughts into plain daylight removes half their leverage before evening even starts.",
+        "intentionPrompt": "Send one ordinary message to a friend so you stay connected today."
+      },
+      "liturgical": {
+        "source": "Psalm 139 · Examen",
+        "excerpt": "Know my heart, O Lord, and see every restless thought within me.",
+        "reflection": "Nothing you feel surprises God. Name one tension honestly this morning so you do not have to medicate it in secret tonight.",
+        "intentionPrompt": "Who is one grounded person you can check in with this week?"
+      }
+    }
+  },
+  {
+    "id": "daily_07",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Romans 8:1 · BSB",
+        "excerpt": "Therefore there is now no condemnation for those who are in Christ Jesus.",
+        "reflection": "Condemnation is not a recovery tool—it is fuel for the next binge. Walking in clarity grows out of security, never out of self-hatred.",
+        "intentionPrompt": "Notice any harsh inner monologue today and answer it plainly."
+      },
+      "liturgical": {
+        "source": "Romans 8 · Grace",
+        "excerpt": "There is now no condemnation for those who walk in Christ.",
+        "reflection": "Receive this day without an invisible courtroom following you around. Steadiness grows slowly when shame is no longer driving the wheel.",
+        "intentionPrompt": "Speak to yourself today with the patience you would offer a friend."
+      }
+    }
+  },
+  {
+    "id": "daily_08",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 62:8 · BSB",
+        "excerpt": "Pour out your hearts before Him. God is our refuge.",
+        "reflection": "A third of the Psalms are unfiltered laments—anger, frustration, loneliness. You do not need polite religious language to be heard.",
+        "intentionPrompt": "Name one honest frustration today instead of swallowing it."
+      },
+      "liturgical": {
+        "source": "Psalm 62 · Lament",
+        "excerpt": "Pour out your heart before Him; God is a refuge for us.",
+        "reflection": "Unspoken grief often turns sideways into late-night numbing. Give your real feelings honest words early in the day.",
+        "intentionPrompt": "Take two minutes at dusk to lay down what felt unfair today."
+      }
+    }
+  },
+  {
+    "id": "daily_09",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Proverbs 4:23 · BSB",
+        "excerpt": "Guard your heart with all diligence, for from it flow springs of life.",
+        "reflection": "Guarding your heart is not paranoia—it is practical stewardship of your attention. Good boundaries protect your peace when willpower wears thin.",
+        "intentionPrompt": "Choose one room where your phone does not enter today."
+      },
+      "liturgical": {
+        "source": "Proverbs 4 · Watchfulness",
+        "excerpt": "Keep your heart with all vigilance, for from it flow the springs of life.",
+        "reflection": "Arrange your physical environment gently in your favor today so you do not have to fight algorithms at midnight.",
+        "intentionPrompt": "Set your phone charger outside arm's reach of your bed tonight."
+      }
+    }
+  },
+  {
+    "id": "daily_10",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Isaiah 30:15 · BSB",
+        "excerpt": "In repentance and rest you will be saved; in quietness and trust is your strength.",
+        "reflection": "Most recovery advice tells you to white-knuckle harder. Scripture pairs turning around with rest—strength comes from quietness, not frantic effort.",
+        "intentionPrompt": "Step outside for five minutes of daylight without headphones today."
+      },
+      "liturgical": {
+        "source": "Isaiah 30 · Stillness",
+        "excerpt": "In returning and rest you shall be saved; in quietness and trust is your strength.",
+        "reflection": "Return simply whenever your mind wanders—ten times if needed—without drama or self-reproach.",
+        "intentionPrompt": "Protect your wind-down hour tonight as non-negotiable rest."
+      }
+    }
+  },
+  {
+    "id": "daily_11",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "2 Corinthians 12:9 · BSB",
+        "excerpt": "My grace is sufficient for you, for My power is perfected in weakness.",
+        "reflection": "You do not have to wait until you feel unshakeable to live honestly. Admitting where you are vulnerable is how you build boundaries that actually hold.",
+        "intentionPrompt": "Acknowledge your hardest hour of the day and plan ahead for it."
+      },
+      "liturgical": {
+        "source": "2 Corinthians 12 · Humility",
+        "excerpt": "My grace is sufficient for you; My strength is made perfect in weakness.",
+        "reflection": "Pride insists you should never struggle; humility simply notices the thin ice and walks around it.",
+        "intentionPrompt": "Choose one simple practical safeguard before evening falls."
+      }
+    }
+  },
+  {
+    "id": "daily_12",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 90:12 · BSB",
+        "excerpt": "So teach us to number our days, that we may present a heart of wisdom.",
+        "reflection": "Every ordinary day lived awake—without hiding or numbing—is quietly rebuilding trust with yourself. Today is enough.",
+        "intentionPrompt": "Pick one concrete task that will make you glad tonight."
+      },
+      "liturgical": {
+        "source": "Psalm 90 · Daily Office",
+        "excerpt": "Teach us to number our days rightly, that we may gain a heart of wisdom.",
+        "reflection": "Do not borrow tomorrow's battles. Live this single day with clean attention and lay it down at dusk.",
+        "intentionPrompt": "Close the evening with your two-minute Examen before bed."
+      }
+    }
+  },
+  {
+    "id": "daily_13",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Galatians 6:9 · BSB",
+        "excerpt": "Let us not grow weary in well-doing, for in due time we will reap a harvest if we do not give up.",
+        "reflection": "Rewiring an old coping loop takes steady repetition, not overnight drama. Every time you pause instead of running on autopilot, you carve a better path.",
+        "intentionPrompt": "Celebrate one quiet decision you made well this week."
+      },
+      "liturgical": {
+        "source": "Galatians 6 · Perseverance",
+        "excerpt": "Do not grow weary in doing good; steadiness bears quiet fruit in season.",
+        "reflection": "Long-term faithfulness looks unremarkable from the outside: ordinary mornings, honest check-ins, and returning quickly whenever you drift.",
+        "intentionPrompt": "Keep your evening routine simple and predictable tonight."
+      }
+    }
+  },
+  {
+    "id": "daily_14",
+    "category": "daily",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 34:18 · BSB",
+        "excerpt": "The LORD is near to the brokenhearted; He saves the contrite in spirit.",
+        "reflection": "When you feel worn down by your own habits, the reflex is to pull back from God until you clean yourself up. The gospel works in the exact opposite direction.",
+        "intentionPrompt": "Stay in the light today—skip the urge to isolate."
+      },
+      "liturgical": {
+        "source": "Psalm 34 · Presence",
+        "excerpt": "The Lord is close to the worn and honest heart.",
+        "reflection": "Bring your actual morning—not a polished version—into the day ahead. Presence heals what perfectionism only hides.",
+        "intentionPrompt": "Take three slow breaths right now before checking messages."
+      }
+    }
+  },
+  {
+    "id": "mercy_01",
+    "category": "mercy_return",
+    "tracks": {
+      "scripture": {
+        "source": "Lamentations 3:22-23 · BSB",
+        "excerpt": "His compassions never fail. They are new every morning; great is Your faithfulness.",
+        "reflection": "Yesterday is closed. One hard hour does not wipe out the quiet days you walked before it, and shame is not allowed to write today's script. Begin again on a clean page.",
+        "intentionPrompt": "Hold one small, physical boundary tonight—skip sweeping promises."
+      },
+      "liturgical": {
+        "source": "Lamentations 3 · Day After Mercy",
+        "excerpt": "The steadfast love of the Lord never ceases; His mercies are fresh at dawn.",
+        "reflection": "The ledger from yesterday is closed. Receive this morning without self-punishment, notice what left you vulnerable, and step calmly back onto the path.",
+        "intentionPrompt": "Protect your tired hours tonight with one concrete shift."
+      }
+    }
+  },
+  {
+    "id": "mercy_02",
+    "category": "mercy_return",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 51:10 · BSB",
+        "excerpt": "Create in me a clean heart, O God, and renew a right spirit within me.",
+        "reflection": "Honesty after a slip is already the beginning of restoration. You do not need to hide in guilt for three days to earn your way back into the light.",
+        "intentionPrompt": "Text one grounded friend today just to stay out of isolation."
+      },
+      "liturgical": {
+        "source": "Psalm 51 · Restoration",
+        "excerpt": "Create in me a clean heart, O God, and renew a steady spirit within me.",
+        "reflection": "Notice the difference between grace and shame: shame whispers that you are a fraud; grace invites you to stand up, drink some water, and walk steadily today.",
+        "intentionPrompt": "Keep your phone outside your bedroom when you sleep tonight."
+      }
+    }
+  },
+  {
+    "id": "emotion_lonely",
+    "category": "emotion",
+    "emotionTag": "lonely",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 25:16 · BSB",
+        "excerpt": "Turn to me and be gracious to me, for I am lonely and afflicted.",
+        "reflection": "Loneliness has been loud lately—and screens promise quick closeness while leaving the room colder afterward. Real connection starts with small, ordinary contact.",
+        "intentionPrompt": "Reach out to one real person today—even a two-line text counts."
+      },
+      "liturgical": {
+        "source": "Psalm 25 · For Lonely Hours",
+        "excerpt": "Turn to me and have mercy, for I am lonely and worn thin.",
+        "reflection": "Notice that the pull you felt this week was a hunger for presence, not a moral defect. Feed the real hunger with real human voice or company today.",
+        "intentionPrompt": "Plan one brief face-to-face or voice check-in this week."
+      }
+    }
+  },
+  {
+    "id": "emotion_exhausted",
+    "category": "emotion",
+    "emotionTag": "exhausted",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 127:2 · BSB",
+        "excerpt": "In vain you rise early and stay up late... for He grants sleep to those He loves.",
+        "reflection": "Fatigue has been your biggest doorway this week. When your body is depleted after dark, willpower shuts down—sleep is one of the most spiritual boundaries you can keep.",
+        "intentionPrompt": "Aim to put screens away 30 minutes earlier tonight."
+      },
+      "liturgical": {
+        "source": "Psalm 127 · For Tired Days",
+        "excerpt": "He gives sleep to His beloved.",
+        "reflection": "Stop asking an exhausted nervous system to fight midnight battles. Guard your rest tonight as an act of trust.",
+        "intentionPrompt": "Plug your phone in across the room before getting into bed."
+      }
+    }
+  },
+  {
+    "id": "emotion_stressed",
+    "category": "emotion",
+    "emotionTag": "stressed",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 94:19 · BSB",
+        "excerpt": "When anxiety overwhelms me, Your consolation brings me joy.",
+        "reflection": "Pressure has been piling up this week, and your brain naturally hunts for the fastest off-switch it knows. Give your body real decompression before night falls.",
+        "intentionPrompt": "Take a 10-minute walk or cold-water reset right after work today."
+      },
+      "liturgical": {
+        "source": "Psalm 94 · Under Pressure",
+        "excerpt": "When the cares of my heart are many, Your consolations steady my soul.",
+        "reflection": "You are not required to solve every pressure tonight. Set a physical boundary between work stress and your evening stillness.",
+        "intentionPrompt": "Write down tomorrow's top task at 6 PM so your mind can let go."
       }
     }
   }

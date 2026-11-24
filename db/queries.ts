@@ -14,6 +14,9 @@ export interface UserPreferences {
   app_icon: string;
   onboarded_at: string | null;
   onboarding_completed: boolean;
+  last_opened_at: string | null;
+  trusted_ally_name: string | null;
+  trusted_ally_phone: string | null;
 }
 
 export interface ClarityDay {
@@ -29,6 +32,20 @@ export interface WeatherMapInsights {
   peakWindowLabel: string | null;
   topEmotionTag: string | null;
   examenProtectionRate: number | null;
+}
+
+export interface BoundaryItem {
+  id: string;
+  label: string;
+  source: string;
+  created_at: string;
+  expires_at: string;
+  kept: number | null;
+}
+
+export interface IfThenPlan {
+  emotion_tag: string;
+  off_ramp_text: string;
 }
 
 export function getLocalDateString(date: Date = new Date()): string {
@@ -51,6 +68,9 @@ export async function getPreferences(): Promise<UserPreferences> {
     app_icon: row?.app_icon ?? 'linen_mark',
     onboarded_at: row?.onboarded_at ?? null,
     onboarding_completed: Boolean(row?.onboarding_completed),
+    last_opened_at: row?.last_opened_at ?? null,
+    trusted_ally_name: row?.trusted_ally_name ?? null,
+    trusted_ally_phone: row?.trusted_ally_phone ?? null,
   };
 }
 
@@ -62,7 +82,8 @@ export async function updatePreferences(partial: Partial<UserPreferences>): Prom
   await db.runAsync(
     `UPDATE user_preferences
      SET tone_track = ?, bedtime_hhmm = ?, morning_hhmm = ?, vulnerable_windows = ?,
-         biometric_lock = ?, save_laments = ?, app_icon = ?, onboarded_at = ?, onboarding_completed = ?
+         biometric_lock = ?, save_laments = ?, app_icon = ?, onboarded_at = ?,
+         onboarding_completed = ?, last_opened_at = ?, trusted_ally_name = ?, trusted_ally_phone = ?
      WHERE id = 1;`,
     [
       next.tone_track,
@@ -74,8 +95,68 @@ export async function updatePreferences(partial: Partial<UserPreferences>): Prom
       next.app_icon,
       next.onboarded_at,
       next.onboarding_completed ? 1 : 0,
+      next.last_opened_at,
+      next.trusted_ally_name,
+      next.trusted_ally_phone,
     ]
   );
+}
+
+/** Returns days elapsed since last open (null on first open) and updates last_opened_at */
+export async function checkAbsenceAndTouch(): Promise<number> {
+  const prefs = await getPreferences();
+  const now = new Date();
+  let daysAway = 0;
+
+  if (prefs.last_opened_at) {
+    const prev = new Date(prefs.last_opened_at).getTime();
+    if (!Number.isNaN(prev)) {
+      daysAway = Math.floor((now.getTime() - prev) / (1000 * 60 * 60 * 24));
+    }
+  }
+
+  await updatePreferences({ last_opened_at: now.toISOString() });
+  return daysAway;
+}
+
+/** Checks if user logged a Grace Reset yesterday or earlier today (triggers Day-After-Mercy) */
+export async function didResetRecently(): Promise<boolean> {
+  const db = await getDb();
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yStr = getLocalDateString(yesterday);
+  const tStr = getLocalDateString(now);
+
+  const row = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM grace_resets WHERE date IN (?, ?);`,
+    [yStr, tStr]
+  );
+  return (row?.count ?? 0) > 0;
+}
+
+/** Finds dominant root emotion over the past 7 days if logged >= 2 times */
+export async function getDominantRecentEmotion(): Promise<string | null> {
+  const db = await getDb();
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const rows = await db.getAllAsync<{ tag: string | null }>(
+    `SELECT emotion_tag as tag FROM pause_events WHERE created_at >= ? AND emotion_tag IS NOT NULL
+     UNION ALL
+     SELECT numbing_need_tag as tag FROM grace_resets WHERE created_at >= ? AND numbing_need_tag IS NOT NULL;`,
+    [cutoffIso, cutoffIso]
+  );
+
+  const counts: Record<string, number> = {};
+  for (const r of rows) {
+    if (!r.tag) continue;
+    const normalized = r.tag.toLowerCase();
+    counts[normalized] = (counts[normalized] ?? 0) + 1;
+  }
+
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  if (!top || top[1] < 2) return null;
+  return top[0];
 }
 
 export async function shouldTriggerBingeBreaker(): Promise<boolean> {
@@ -98,6 +179,49 @@ export async function getOffRampForEmotion(emotionTag: string): Promise<string> 
     row?.off_ramp_text ??
     'Lock the screen, drink a glass of water, and step into another room for five minutes.'
   );
+}
+
+export async function getAllIfThenPlans(): Promise<IfThenPlan[]> {
+  const db = await getDb();
+  return db.getAllAsync<IfThenPlan>(
+    `SELECT emotion_tag, off_ramp_text FROM if_then_plans ORDER BY emotion_tag ASC;`
+  );
+}
+
+export async function updateIfThenPlan(emotionTag: string, offRampText: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO if_then_plans (emotion_tag, off_ramp_text) VALUES (?, ?)
+     ON CONFLICT(emotion_tag) DO UPDATE SET off_ramp_text = excluded.off_ramp_text;`,
+    [emotionTag, offRampText.trim()]
+  );
+}
+
+export async function getActiveBoundaries(): Promise<BoundaryItem[]> {
+  const db = await getDb();
+  const nowIso = new Date().toISOString();
+  return db.getAllAsync<BoundaryItem>(
+    `SELECT * FROM boundaries
+     WHERE kept IS NULL AND expires_at >= ?
+     ORDER BY created_at DESC;`,
+    [nowIso]
+  );
+}
+
+export async function addCustomBoundary(label: string): Promise<void> {
+  const db = await getDb();
+  const now = new Date();
+  const expiresIso = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  await db.runAsync(
+    `INSERT INTO boundaries (id, label, source, created_at, expires_at)
+     VALUES (?, ?, 'rhythm', ?, ?);`,
+    [Crypto.randomUUID(), label.trim(), now.toISOString(), expiresIso]
+  );
+}
+
+export async function resolveBoundary(id: string, kept: boolean): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`UPDATE boundaries SET kept = ? WHERE id = ?;`, [kept ? 1 : 0, id]);
 }
 
 export async function logPauseEvent(params: {

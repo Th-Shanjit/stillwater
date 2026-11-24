@@ -1,0 +1,126 @@
+[
+  {
+    "id": "urge_1am",
+    "title": "It is 1 AM and the urge is loud",
+    "subtitle": "3-min guided vagal breath & urge surfing",
+    "durationSeconds": 180,
+    "tier": "free",
+    "audioUri": null,
+    "cues": [
+      {
+        "atSecond": 0,
+        "text": "You made it here before autopilot took over. Put the phone face-down beside you if you can, or tap Eyes-Closed mode so the screen goes dim. Do not try to wrestle the craving out of your mind—fighting a thought only hands it a megaphone."
+      },
+      {
+        "atSecond": 30,
+        "text": "Notice your body right now. Unclench your jaw. Drop your shoulders an inch away from your ears. Take a slow breath in for four seconds... and let it fall out long and unhurried for six."
+      },
+      {
+        "atSecond": 60,
+        "text": "An urge feels permanent when it hits, like an alarm that will not stop until you obey it. Biologically, it is a wave—it builds, crests, and if you do not feed it, it breaks on its own. Your only job is to stay on the shore."
+      },
+      {
+        "atSecond": 90,
+        "text": "Early desert monks noticed that stray images knock on every human mind. A thought knocking at the door is not sin—it is just weather passing across the sky. You do not have to hate yourself for the rain."
+      },
+      {
+        "atSecond": 120,
+        "text": "Ask quietly: What am I actually hungry for right now? Often it is not sex at all—it is relief from a heavy day, rest for an exhausted mind, or a break from feeling unseen. Name that real need honestly before God."
+      },
+      {
+        "atSecond": 150,
+        "text": "Two final slow breaths. Inhale: Lord, be my stillness. Exhale: This noise will pass. When this finishes, lock your screen, place it across the room, drink a glass of water, and sleep."
+      }
+    ]
+  },
+  {
+    "id": "post_slip_fraud",
+    "title": "I just slipped and feel like a fraud",
+    "subtitle": "4-min shame-spiral breaker & honest lament",
+    "durationSeconds": 240,
+    "tier": "plus",
+    "audioUri": null,
+    "cues": [
+      {
+        "atSecond": 0,
+        "text": "Stop right here. Before your mind starts building a courtroom, take one slow breath. Shame wants you to hide, call yourself hopeless, and slip a second time just to numb the sting."
+      },
+      {
+        "atSecond": 45,
+        "text": "Hear this plainly: there is no condemnation here. One bad hour does not delete who you are, and it does not wipe out the honest days you walked before tonight."
+      },
+      {
+        "atSecond": 95,
+        "text": "Step off the escalator right now. Notice with quiet curiosity—not disgust—what opened the door. Were you depleted, lonely, stressed, or scrolling in bed past your limit?"
+      },
+      {
+        "atSecond": 145,
+        "text": "Bring one unfiltered sentence to God. No polite religious script. Tell Him plainly that you are tired of this loop and ask for His steadiness in the morning."
+      },
+      {
+        "atSecond": 195,
+        "text": "The ledger is closed. Do not spend the next hour punishing yourself on your phone. Drink a glass of water, plug your phone in across the room, and begin again at dawn."
+      }
+    ]
+  },
+  {
+    "id": "lonely_house",
+    "title": "Lonely in my own house",
+    "subtitle": "4-min grounding & honest presence prayer",
+    "durationSeconds": 240,
+    "tier": "plus",
+    "audioUri": null,
+    "cues": [
+      {
+        "atSecond": 0,
+        "text": "Loneliness is not a moral failure—it is an honest human signal that you were made for real company. Let yourself admit that the room feels too quiet tonight."
+      },
+      {
+        "atSecond": 50,
+        "text": "Notice how quickly a screen volunteers to fill the silence, promising warmth while quietly leaving you emptier ten minutes later. Pause long enough to see through the trade."
+      },
+      {
+        "atSecond": 105,
+        "text": "Breathe slowly in: Be near me in this quiet room. Breathe out: Keep me steady until morning. Let your shoulders settle into the chair or mattress beneath you."
+      },
+      {
+        "atSecond": 165,
+        "text": "Think of one ordinary person in your life—not someone you need to confess to, just a real voice. Plan one two-line text you will send them tomorrow morning."
+      },
+      {
+        "atSecond": 210,
+        "text": "You do not have to solve loneliness tonight—only stay awake to your own dignity until morning. Put the phone down, turn on a soft lamp, or go to sleep."
+      }
+    ]
+  },
+  {
+    "id": "eyes_closed_examen",
+    "title": "Put the day down (Eyes-Closed Examen)",
+    "subtitle": "5-min guided Ignatian wind-down into sleep",
+    "durationSeconds": 300,
+    "tier": "plus",
+    "audioUri": null,
+    "cues": [
+      {
+        "atSecond": 0,
+        "text": "Today is finished. Set your phone face-down, close your eyes, and take three slow, unhurried breaths. Let the noise of the last twelve hours fall back a step."
+      },
+      {
+        "atSecond": 60,
+        "text": "First, notice where grace met you today. Picture one small, concrete good—a steadying conversation, a meal, a moment of quiet focus, or simply making it through a heavy afternoon."
+      },
+      {
+        "atSecond": 130,
+        "text": "Second, look gently at where you felt drained or pulled toward numbing. Do not put yourself on trial—just notice what cost you energy today and hand that tension to God."
+      },
+      {
+        "atSecond": 205,
+        "text": "Third, release every unfinished task and unspoken worry. You are not required to hold the world together while you sleep."
+      },
+      {
+        "atSecond": 260,
+        "text": "Inhale: Into Your hands I place today. Exhale: I rest in peace. Leave the phone untouched until morning. Goodnight."
+      }
+    ]
+  }
+]

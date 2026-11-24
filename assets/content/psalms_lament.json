@@ -1,0 +1,50 @@
+[
+  {
+    "id": "lament_exhausted",
+    "title": "When you are completely worn thin",
+    "scriptureRef": "Psalm 6:2-3 · Paraphrase",
+    "scriptureText": "Be gentle with me, Lord, because my strength is gone and my spirit feels bruised. Even when I can only ask how long this heaviness will last, You still hear me.",
+    "originalPrayer": "Lord, I have nothing polished to bring tonight. I am tired of fighting my own habits and tired of carrying the day's pressure on my own shoulders. Meet me right here in this exhaustion, and let me rest without numbing out.",
+    "prompt": "What part of today drained you the most, and what would genuine rest look like tonight?"
+  },
+  {
+    "id": "lament_fraud",
+    "title": "After a slip, feeling like a fraud",
+    "scriptureRef": "Psalm 51:10-12 · Paraphrase",
+    "scriptureText": "Rebuild a clean and steady heart inside me, God. Do not push me away from Your presence; give me back the quiet steadiness of Your Spirit.",
+    "originalPrayer": "God, I am not hiding from You tonight. Shame is telling me I ruined everything and should just keep spiraling. Quiet that lie. Help me take honest responsibility, set one clear boundary, and walk back into the light.",
+    "prompt": "What happened in the hour before the slip—and what single boundary would protect tomorrow?"
+  },
+  {
+    "id": "lament_lonely",
+    "title": "Lonely in a quiet house",
+    "scriptureRef": "Psalm 25:16-17 · Paraphrase",
+    "scriptureText": "Look toward me with kindness, God, when isolation feels heavy and my mind feels crowded with weight. Lead me out of this tightness into open air.",
+    "originalPrayer": "Lord, the quiet feels heavy tonight, and a screen looks like the easiest way to feel less alone. Remind me that counterfeit closeness always leaves the room colder afterward. Keep me steady until morning and give me courage to reach out to real people.",
+    "prompt": "Who is one grounded friend you can message tomorrow—even with two ordinary sentences?"
+  },
+  {
+    "id": "lament_anger",
+    "title": "When frustration and anger run hot",
+    "scriptureRef": "Psalm 13:1-2 · Paraphrase",
+    "scriptureText": "When it feels like nothing is changing and I am tired of wrestling the same thoughts every single day, I can bring that blunt question straight to You without pretending.",
+    "originalPrayer": "God, I am frustrated with how slow change feels and angry at the stress sitting on my chest. You can handle my unfiltered honesty. Take this heat out of my shoulders before I turn it against myself.",
+    "prompt": "Say plainly what feels unfair or frustrating right now without dressing it up."
+  },
+  {
+    "id": "lament_restless",
+    "title": "Restless mind at midnight",
+    "scriptureRef": "Psalm 77:2-4 · Paraphrase",
+    "scriptureText": "In the middle of a sleepless night, when my eyes refuse to shut and words run thin, I still reach out toward You instead of running away.",
+    "originalPrayer": "Lord, my body is in bed, but my thoughts will not stop pacing. Quiet the urge to scroll until I go numb. Slow my breath, untangle my focus, and hold the unfinished things until daylight.",
+    "prompt": "Write down the single worry trying to follow you into sleep, then set the phone down."
+  },
+  {
+    "id": "lament_new_morning",
+    "title": "Starting again without dread",
+    "scriptureRef": "Psalm 30:5 · Paraphrase",
+    "scriptureText": "Grief and heaviness may linger through the dark hours, yet a fresh morning still arrives with light and mercy.",
+    "originalPrayer": "Father, thank You that yesterday does not own today. I receive this morning as an uncluttered table. Give me clear eyes, ordinary steadiness, and patience with the slow work of healing.",
+    "prompt": "What is one quiet, good thing you can lean into today?"
+  }
+]

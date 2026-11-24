@@ -1,43 +1,47 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Palette, Radius, Sizes, Spacing, Typography } from '../../theme/tokens';
 import {
+  checkAbsenceAndTouch,
   ClarityDay,
   completeMorningAnchor,
   getClarityGrid,
   getLocalDateString,
   getPreferences,
-  ToneTrack,
 } from '../../db/queries';
+import { getSmartMorningAnchor, ResolvedMorningAnchor } from '../../db/contentEngine';
 import {
   AppHeader,
   StainedGlassArch,
   useScreenInset,
 } from '../../components/RoyalUI';
-import anchors from '../../assets/content/morning_anchors.json';
 
 export default function TodayScreen() {
   const router = useRouter();
   const { inset, isNarrow } = useScreenInset();
-  const [track, setTrack] = useState<ToneTrack>('scripture');
+  const [anchor, setAnchor] = useState<ResolvedMorningAnchor | null>(null);
   const [grid, setGrid] = useState<ClarityDay[]>([]);
   const [clarityCount, setClarityCount] = useState(0);
   const [activeDays, setActiveDays] = useState(0);
   const [morningDone, setMorningDone] = useState(false);
-  const [calendarWidth, setCalendarWidth] = useState(0);
-  const calendarGap = 6;
-  const calendarCellWidth = Math.max(
-    0,
-    Math.floor((calendarWidth - calendarGap * 6) / 7)
-  );
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
+
+  useEffect(() => {
+    checkAbsenceAndTouch().then((daysAway) => {
+      if (daysAway >= 7) setShowWelcomeBack(true);
+    });
+  }, []);
 
   const loadData = useCallback(async () => {
     const prefs = await getPreferences();
-    const res = await getClarityGrid(30);
-    setTrack(prefs.tone_track);
+    const [res, smartAnchor] = await Promise.all([
+      getClarityGrid(30),
+      getSmartMorningAnchor(prefs.tone_track),
+    ]);
+    setAnchor(smartAnchor);
     setGrid(res.grid);
     setClarityCount(res.clarityCount);
     setActiveDays(res.activeDays);
@@ -51,8 +55,6 @@ export default function TodayScreen() {
     }, [loadData])
   );
 
-  const anchor = anchors[new Date().getDate() % anchors.length];
-  const copy = anchor.tracks[track];
   const todayStr = getLocalDateString();
   const formattedDay = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
@@ -61,7 +63,8 @@ export default function TodayScreen() {
   });
 
   const handleCarryToday = async () => {
-    await completeMorningAnchor(String(anchor.dayIndex));
+    if (!anchor) return;
+    await completeMorningAnchor(anchor.id);
     await loadData();
   };
 
@@ -84,42 +87,55 @@ export default function TodayScreen() {
           </Text>
         </View>
 
-        {/* Morning Anchor — Liturgical Violet Scripture Panel */}
-        <View style={styles.scriptureCard}>
-          <View style={styles.scriptureInner}>
-            <Text style={styles.scriptureEyebrow}>
-              MORNING ANCHOR · {copy.source.toUpperCase()}
-            </Text>
-            <View style={styles.scriptureComposition}>
-              <Text style={styles.scriptureQuote}>“{copy.excerpt}”</Text>
-              <StainedGlassArch
-                width={isNarrow ? 64 : 86}
-                style={styles.scriptureArt}
-              />
+        {/* Zero-Guilt 7+ Day Absence Welcome Banner */}
+        {showWelcomeBack && (
+          <View style={styles.welcomeCard}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={styles.welcomeTitle}>Welcome back.</Text>
+              <Text style={styles.welcomeSub}>
+                No need to explain where you have been. Today is a clean table.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setShowWelcomeBack(false)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss welcome back message"
+            >
+              <Feather name="x" size={18} color={Palette.light.scripture} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* State-Aware Morning Anchor — Liturgical Violet Scripture Panel */}
+        {anchor && (
+          <View style={styles.scriptureCard}>
+            <StainedGlassArch />
+            <View style={styles.scriptureInner}>
+              <Text style={styles.scriptureEyebrow}>{anchor.badge}</Text>
+              <Text style={styles.scriptureQuote}>“{anchor.excerpt}”</Text>
+              <Text style={styles.scriptureBody}>{anchor.reflection}</Text>
+
+              <Pressable
+                onPress={handleCarryToday}
+                accessibilityRole="button"
+                accessibilityState={{ selected: morningDone }}
+                style={({ pressed }) => [
+                  styles.carryBtn,
+                  morningDone && styles.carryBtnDone,
+                  pressed && { opacity: 0.9, transform: [{ scale: 0.985 }] },
+                ]}
+              >
+                {morningDone && (
+                  <Feather name="check" size={17} color={Palette.light.onPrimary} />
+                )}
+                <Text style={[styles.carryBtnText, morningDone && styles.carryBtnTextDone]}>
+                  {morningDone ? 'Carried into today' : 'Carry this today'}
+                </Text>
+              </Pressable>
             </View>
           </View>
-        </View>
-
-        <View style={styles.reflectionBlock}>
-          <Text style={styles.scriptureBody}>{copy.reflection}</Text>
-          <Pressable
-              onPress={handleCarryToday}
-              accessibilityRole="button"
-              accessibilityState={{ selected: morningDone }}
-              style={({ pressed }) => [
-                styles.carryBtn,
-                morningDone && styles.carryBtnDone,
-                pressed && { opacity: 0.9, transform: [{ scale: 0.985 }] },
-              ]}
-            >
-              {morningDone && (
-                <Feather name="check" size={17} color={Palette.light.onPrimary} />
-              )}
-              <Text style={[styles.carryBtnText, morningDone && styles.carryBtnTextDone]}>
-                {morningDone ? 'Carried into today' : 'Carry this today'}
-              </Text>
-          </Pressable>
-        </View>
+        )}
 
         {/* 30-Day Clarity Panel — White Grouped Surface */}
         <View style={styles.clarityPanel}>
@@ -141,12 +157,7 @@ export default function TodayScreen() {
             </Text>
           </View>
 
-          <View
-            style={styles.calendarGrid}
-            onLayout={(event) =>
-              setCalendarWidth(event.nativeEvent.layout.width)
-            }
-          >
+          <View style={styles.calendarGrid}>
             {grid.map((day) => {
               const isToday = day.date === todayStr;
               const dayNum = Number(day.date.slice(8, 10));
@@ -154,14 +165,9 @@ export default function TodayScreen() {
                 <View
                   key={day.date}
                   accessible
-                  accessibilityLabel={`${day.date}: ${day.status}${isToday ? ', today' : ''}`}
+                  accessibilityLabel={`${day.date}: ${day.status}`}
                   style={[
                     styles.cell,
-                    {
-                      width: calendarWidth > 0
-                        ? calendarCellWidth
-                        : '12%',
-                    },
                     day.status === 'clarity' && styles.cellClarity,
                     day.status === 'returned' && styles.cellReturned,
                     isToday && styles.cellToday,
@@ -176,49 +182,9 @@ export default function TodayScreen() {
                   >
                     {dayNum}
                   </Text>
-                  <Text
-                    style={[
-                      styles.cellSymbol,
-                      day.status === 'clarity' && styles.cellTextClarity,
-                      day.status === 'returned' && styles.cellTextReturned,
-                    ]}
-                  >
-                    {day.status === 'clarity'
-                      ? '\u2713'
-                      : day.status === 'returned'
-                        ? '\u21B6'
-                        : '\u00B7'}
-                  </Text>
                 </View>
               );
             })}
-          </View>
-
-          <View style={styles.calendarLegend}>
-            <Text style={[
-              styles.legendText,
-              { color: Palette.light.success },
-            ]}>
-              {'\u2713'} Clarity
-            </Text>
-
-            <Text style={[
-              styles.legendText,
-              { color: Palette.light.scripture },
-            ]}>
-              {'\u21B6'} Returned
-            </Text>
-
-            <Text style={styles.legendText}>
-              {'\u00B7'} Other days
-            </Text>
-
-            <Text style={[
-              styles.legendText,
-              { color: Palette.light.primary },
-            ]}>
-              {'\u25A1'} Today
-            </Text>
           </View>
         </View>
 
@@ -238,7 +204,7 @@ export default function TodayScreen() {
           <Feather name="arrow-right" size={20} color={Palette.light.support} />
         </Pressable>
 
-        {/* Grouped Daily Practices List (Reset with Grace + Evening Examen) */}
+        {/* Grouped Daily Practices List */}
         <View style={styles.groupedRows}>
           <Pressable
             onPress={() => router.push('/grace-reset')}
@@ -277,73 +243,61 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.light.background },
   container: { paddingTop: Spacing.sm, paddingBottom: Spacing.xxl, gap: Spacing.lg },
   headingBlock: { gap: Spacing.xs },
-  eyebrow: {
-    ...Typography.label,
-    color: Palette.light.textSecondary,
-  },
+  eyebrow: { ...Typography.label, color: Palette.light.textSecondary },
   screenTitle: { color: Palette.light.text },
+  welcomeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    backgroundColor: Palette.light.scriptureTonal,
+    borderRadius: Radius.standard,
+    padding: Spacing.lg,
+  },
+  welcomeTitle: {
+    fontFamily: Typography.sansFamily,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Palette.light.scripture,
+  },
+  welcomeSub: {
+    ...Typography.secondary,
+    fontSize: 14,
+    color: Palette.light.scripture,
+  },
   scriptureCard: {
     backgroundColor: Palette.light.scripture,
     borderRadius: Radius.feature,
     overflow: 'hidden',
     padding: 20,
-    minHeight: 152,
+    minHeight: 210,
   },
-  scriptureInner: {
-    gap: Spacing.md,
-  },
-  scriptureComposition: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  scriptureArt: {
-    position: 'relative',
-    right: 0,
-    bottom: 0,
-    opacity: 1,
-    flexShrink: 0,
-  },
-  reflectionBlock: {
-    gap: Spacing.md,
-  },
-  scriptureEyebrow: {
-    ...Typography.label,
-    color: Palette.light.scriptureGold,
-  },
+  scriptureInner: { gap: Spacing.md, zIndex: 1 },
+  scriptureEyebrow: { ...Typography.label, color: Palette.light.scriptureGold },
   scriptureQuote: {
     ...Typography.scripture,
     color: Palette.light.scriptureText,
-    flex: 1,
-    minWidth: 0,
+    maxWidth: '82%',
   },
   scriptureBody: {
     ...Typography.body,
     fontSize: 15,
     lineHeight: 22,
-    color: Palette.light.textSecondary,
+    color: Palette.light.scriptureSecondary,
   },
   carryBtn: {
     marginTop: Spacing.xs,
     minHeight: Sizes.primaryButtonHeight,
     borderRadius: Radius.standard,
-    backgroundColor: Palette.light.primary,
+    backgroundColor: Palette.light.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
   },
-  carryBtnDone: {
-    backgroundColor: Palette.light.success,
-  },
-  carryBtnText: {
-    ...Typography.button,
-    color: Palette.light.onPrimary,
-  },
-  carryBtnTextDone: {
-    color: Palette.light.onPrimary,
-  },
+  carryBtnDone: { backgroundColor: Palette.light.success },
+  carryBtnText: { ...Typography.button, color: Palette.light.scripture },
+  carryBtnTextDone: { color: Palette.light.onPrimary },
   clarityPanel: {
     backgroundColor: Palette.light.surface,
     borderRadius: Radius.feature,
@@ -352,45 +306,21 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  panelHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  panelTitle: {
-    ...Typography.section,
-    color: Palette.light.text,
-  },
+  panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  panelTitle: { ...Typography.section, color: Palette.light.text },
   quietLink: {
     fontFamily: Typography.sansFamily,
     fontSize: 13,
     fontWeight: '600',
     color: Palette.light.primary,
   },
-  metricRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  metricNumber: {
-    ...Typography.metric,
-    color: Palette.light.text,
-  },
-  metricCaption: {
-    ...Typography.secondary,
-    color: Palette.light.textSecondary,
-    flexShrink: 1,
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
+  metricRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' },
+  metricNumber: { ...Typography.metric, color: Palette.light.text },
+  metricCaption: { ...Typography.secondary, color: Palette.light.textSecondary, flexShrink: 1 },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   cell: {
-    minHeight: 40,
-    paddingVertical: 4,
-    gap: 2,
+    width: '12.5%',
+    aspectRatio: 1,
     borderRadius: Radius.small,
     backgroundColor: Palette.light.background,
     borderWidth: Sizes.borderWidth,
@@ -398,44 +328,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cellClarity: {
-    backgroundColor: Palette.light.success,
-    borderColor: Palette.light.success,
-  },
+  cellClarity: { backgroundColor: Palette.light.success, borderColor: Palette.light.success },
   cellReturned: {
     backgroundColor: Palette.light.scriptureTonal,
     borderColor: Palette.light.scripture,
     borderWidth: 1.5,
   },
-  cellToday: {
-    borderColor: Palette.light.primary,
-    borderWidth: 2,
-  },
+  cellToday: { borderColor: Palette.light.primary, borderWidth: 2 },
   cellText: {
     fontFamily: Typography.sansFamily,
     fontSize: 11,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
-    color: Palette.light.textSecondary,
-  },
-  cellSymbol: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 12,
-    fontWeight: '600',
-    color: Palette.light.textSecondary,
-  },
-  calendarLegend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 12,
-    rowGap: 8,
-    paddingTop: Spacing.xs,
-  },
-  legendText: {
-    ...Typography.secondary,
-    fontSize: 12,
-    fontWeight: '500',
     color: Palette.light.textSecondary,
   },
   cellTextClarity: { color: Palette.light.onPrimary },
@@ -479,19 +383,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   actionRowPressed: { opacity: 0.7 },
-  rowDivider: {
-    height: Sizes.borderWidth,
-    backgroundColor: Palette.light.border,
-  },
+  rowDivider: { height: Sizes.borderWidth, backgroundColor: Palette.light.border },
   rowTitle: {
     fontFamily: Typography.sansFamily,
     fontSize: 15,
     fontWeight: '600',
     color: Palette.light.text,
   },
-  rowSub: {
-    ...Typography.secondary,
-    color: Palette.light.textSecondary,
-    marginTop: 2,
-  },
+  rowSub: { ...Typography.secondary, color: Palette.light.textSecondary, marginTop: 2 },
 });

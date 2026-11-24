@@ -11,10 +11,10 @@ import {
   ChoiceChip,
   PrimaryButton,
   StepBar,
-  StainedGlassArch,
   StillwaterMark,
   useScreenInset,
 } from '../components/RoyalUI';
+import { PlusOfferView } from '../components/PlusOfferView';
 
 const WINDOWS = [
   'Late night in bed',
@@ -70,7 +70,7 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleFinish = async () => {
+  const handleSavePrivacyAndContinue = async () => {
     if (saving) return;
     setSaving(true);
     try {
@@ -79,10 +79,9 @@ export default function OnboardingScreen() {
         vulnerable_windows: windows,
         bedtime_hhmm: bedtime,
         biometric_lock: biometricLock,
-        save_laments: !keepLocalOnly ? false : false,
+        save_laments: !keepLocalOnly,
         app_icon: appIcon,
         onboarded_at: new Date().toISOString(),
-        onboarding_completed: true,
       });
 
       try {
@@ -94,10 +93,15 @@ export default function OnboardingScreen() {
         // Local notifications gracefully skipped if unavailable in Expo Go
       }
 
-      router.replace('/(tabs)');
+      setStep(4);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEnterApp = async () => {
+    await updatePreferences({ onboarding_completed: true });
+    router.replace('/(tabs)');
   };
 
   return (
@@ -106,40 +110,17 @@ export default function OnboardingScreen() {
         contentContainerStyle={[styles.container, { paddingHorizontal: inset }]}
         showsVerticalScrollIndicator={false}
       >
-        {step > 0 && <StepBar total={3} current={step - 1} />}
+        {step > 0 && <StepBar total={4} current={step - 1} />}
 
         {step === 0 && (
           <View style={styles.block}>
-            <View style={styles.welcomePanel}>
-              <View style={styles.welcomeHeader}>
-                <View style={styles.brandRow}>
-                  <StillwaterMark
-                    size={30}
-                    color={Palette.light.scriptureGold}
-                  />
-                  <Text style={styles.wordmark}>
-                    stillwater.
-                  </Text>
-                </View>
-
-                <StainedGlassArch
-                  width={isNarrow ? 48 : 60}
-                  style={styles.welcomeArt}
-                />
-              </View>
-
-              <View style={styles.welcomeDivider} />
-
-              <Text
-                style={[
-                  Typography.display,
-                  isNarrow && Typography.displayNarrow,
-                  styles.welcomeTitle,
-                ]}
-              >
-                An undivided heart, one ordinary day at a time.
-              </Text>
+            <View style={styles.brandRow}>
+              <StillwaterMark size={28} color={Palette.light.scripture} />
+              <Text style={styles.wordmark}>stillwater.</Text>
             </View>
+            <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
+              An undivided heart, one ordinary day at a time.
+            </Text>
             <Text style={styles.body}>
               A quiet companion for stepping out of compulsive habits—without streaks, shame, or surveillance.
             </Text>
@@ -149,7 +130,7 @@ export default function OnboardingScreen() {
 
         {step === 1 && (
           <View style={styles.block}>
-            <Text style={styles.eyebrow}>1 OF 3 · CHOOSE YOUR VOICE</Text>
+            <Text style={styles.eyebrow}>1 OF 4 · CHOOSE YOUR VOICE</Text>
             <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
               How does prayer usually feel most natural to you?
             </Text>
@@ -164,30 +145,7 @@ export default function OnboardingScreen() {
                 setTrack('scripture');
               }}
             >
-              <View style={styles.choiceHeading}>
-                <Text style={[
-                  styles.choiceTitle,
-                  styles.choiceHeadingText,
-                ]}>
-                  Scripture & Reflection
-                </Text>
-
-                <View
-                  accessible={false}
-                  importantForAccessibility="no-hide-descendants"
-                  style={[
-                    styles.radioIndicator,
-                    track === 'scripture' &&
-                      styles.radioIndicatorActive,
-                  ]}
-                >
-                  {track === 'scripture' && (
-                    <Text style={styles.radioCheck}>
-                      {'\u2713'}
-                    </Text>
-                  )}
-                </View>
-              </View>
+              <Text style={styles.choiceTitle}>Scripture & Reflection</Text>
               <Text style={styles.choiceSub}>
                 Plainspoken daily anchors rooted in honest biblical passages and grounded reflection.
               </Text>
@@ -202,30 +160,7 @@ export default function OnboardingScreen() {
                 setTrack('liturgical');
               }}
             >
-              <View style={styles.choiceHeading}>
-                <Text style={[
-                  styles.choiceTitle,
-                  styles.choiceHeadingText,
-                ]}>
-                  Liturgical & Contemplative
-                </Text>
-
-                <View
-                  accessible={false}
-                  importantForAccessibility="no-hide-descendants"
-                  style={[
-                    styles.radioIndicator,
-                    track === 'liturgical' &&
-                      styles.radioIndicatorActive,
-                  ]}
-                >
-                  {track === 'liturgical' && (
-                    <Text style={styles.radioCheck}>
-                      {'\u2713'}
-                    </Text>
-                  )}
-                </View>
-              </View>
+              <Text style={styles.choiceTitle}>Liturgical & Contemplative</Text>
               <Text style={styles.choiceSub}>
                 Rhythmic breath prayers, evening stillness, and ancient practices of watchfulness.
               </Text>
@@ -237,7 +172,7 @@ export default function OnboardingScreen() {
 
         {step === 2 && (
           <View style={styles.block}>
-            <Text style={styles.eyebrow}>2 OF 3 · YOUR VULNERABLE WINDOW</Text>
+            <Text style={styles.eyebrow}>2 OF 4 · YOUR VULNERABLE WINDOW</Text>
             <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
               When does the noise usually get loudest?
             </Text>
@@ -279,7 +214,7 @@ export default function OnboardingScreen() {
 
         {step === 3 && (
           <View style={styles.block}>
-            <Text style={styles.eyebrow}>3 OF 3 · PRIVACY & DISGUISE</Text>
+            <Text style={styles.eyebrow}>3 OF 4 · PRIVACY & DISGUISE</Text>
             <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
               This stays between you and God.
             </Text>
@@ -296,7 +231,6 @@ export default function OnboardingScreen() {
                   </Text>
                 </View>
                 <Switch
-                  accessibilityLabel="Require Biometric Lock"
                   value={biometricLock}
                   onValueChange={handleToggleBiometrics}
                   trackColor={{ true: Palette.light.primary, false: Palette.light.border }}
@@ -313,7 +247,6 @@ export default function OnboardingScreen() {
                   </Text>
                 </View>
                 <Switch
-                  accessibilityLabel="Burn Box Laments"
                   value={keepLocalOnly}
                   onValueChange={setKeepLocalOnly}
                   trackColor={{ true: Palette.light.primary, false: Palette.light.border }}
@@ -340,12 +273,22 @@ export default function OnboardingScreen() {
             </View>
 
             <PrimaryButton
-              label={saving ? 'Preparing your space...' : 'Enter Stillwater'}
-              onPress={handleFinish}
+              label={saving ? 'Saving preferences...' : 'Continue'}
+              onPress={handleSavePrivacyAndContinue}
               disabled={saving}
               style={{ marginTop: Spacing.sm }}
             />
           </View>
+        )}
+
+        {step === 4 && (
+          <PlusOfferView
+            eyebrow="4 OF 4 · STILLWATER PLUS"
+            headline="Try Stillwater Plus free for 14 days."
+            freeActionLabel="Continue with Free Sanctuary"
+            onUnlocked={handleEnterApp}
+            onContinueFree={handleEnterApp}
+          />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -355,65 +298,16 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.light.background },
   container: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.xl },
-  block: {
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    gap: Spacing.lg,
-  },
-
-  welcomePanel: {
-    backgroundColor: Palette.light.scripture,
-    borderRadius: Radius.feature,
-    padding: Spacing.xl,
-    gap: Spacing.xl,
-    overflow: 'hidden',
-  },
-
-  welcomeHeader: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-  },
-
-  welcomeArt: {
-    position: 'relative',
-    right: 0,
-    bottom: 0,
-    opacity: 1,
-    flexShrink: 0,
-  },
-
-  welcomeDivider: {
-    height: 1,
-    backgroundColor: 'rgba(229, 221, 251, 0.24)',
-  },
-
-  welcomeTitle: {
-    color: Palette.light.scriptureText,
-  },
-
-  brandRow: {
-    flexDirection: 'row',
-    flexShrink: 1,
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
+  block: { gap: Spacing.lg },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   wordmark: {
     fontFamily: Typography.sansFamily,
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: -1.1,
-    color: Palette.light.scriptureText,
-    flexShrink: 1,
+    color: Palette.light.text,
   },
-  eyebrow: {
-    ...Typography.label,
-    color: Palette.light.primary,
-    letterSpacing: 0.7,
-  },
+  eyebrow: { ...Typography.label, color: Palette.light.textSecondary },
   title: { color: Palette.light.text },
   body: { ...Typography.body, color: Palette.light.textSecondary },
   label: {
@@ -426,7 +320,7 @@ const styles = StyleSheet.create({
   smallNote: { ...Typography.secondary, color: Palette.light.textSecondary },
   choiceCard: {
     backgroundColor: Palette.light.surface,
-    borderWidth: 2,
+    borderWidth: Sizes.borderWidth,
     borderColor: Palette.light.border,
     borderRadius: Radius.group,
     padding: Spacing.lg,
@@ -437,40 +331,6 @@ const styles = StyleSheet.create({
     borderColor: Palette.light.primary,
     backgroundColor: Palette.light.primaryTonal,
   },
-  choiceHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-  },
-
-  choiceHeadingText: {
-    flex: 1,
-  },
-
-  radioIndicator: {
-    width: 23,
-    height: 23,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Palette.light.textSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  radioIndicatorActive: {
-    backgroundColor: Palette.light.primary,
-    borderColor: Palette.light.primary,
-  },
-
-  radioCheck: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 14,
-    fontWeight: '700',
-    color: Palette.light.onPrimary,
-    includeFontPadding: false,
-  },
-
   choiceTitle: {
     fontFamily: Typography.sansFamily,
     fontSize: 16,
@@ -487,7 +347,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   settingRow: {
-    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -496,7 +355,7 @@ const styles = StyleSheet.create({
   },
   divider: { height: Sizes.borderWidth, backgroundColor: Palette.light.border },
   notifPreview: {
-    backgroundColor: Palette.light.surfaceSecondary,
+    backgroundColor: Palette.light.surface,
     borderRadius: Radius.group,
     padding: Spacing.lg,
     borderWidth: Sizes.borderWidth,

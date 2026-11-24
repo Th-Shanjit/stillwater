@@ -19,6 +19,14 @@ const DEFAULT_OFF_RAMPS: Record<string, string> = {
   autopilot: 'Lock the screen right now and set the phone face-down in another room for 15 minutes.',
 };
 
+async function safeAlter(db: SQLite.SQLiteDatabase, sql: string) {
+  try {
+    await db.execAsync(sql);
+  } catch {
+    // Column already exists
+  }
+}
+
 export async function initDatabase(): Promise<void> {
   const db = await getDb();
 
@@ -35,7 +43,10 @@ export async function initDatabase(): Promise<void> {
       save_laments INTEGER NOT NULL DEFAULT 0,
       app_icon TEXT NOT NULL DEFAULT 'linen_mark',
       onboarded_at TEXT,
-      onboarding_completed INTEGER NOT NULL DEFAULT 0
+      onboarding_completed INTEGER NOT NULL DEFAULT 0,
+      last_opened_at TEXT,
+      trusted_ally_name TEXT,
+      trusted_ally_phone TEXT
     );
 
     CREATE TABLE IF NOT EXISTS daily_logs (
@@ -86,23 +97,25 @@ export async function initDatabase(): Promise<void> {
       off_ramp_text TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS path_completions (
+      day_number INTEGER PRIMARY KEY,
+      completed_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_grace_resets_created ON grace_resets(created_at);
     CREATE INDEX IF NOT EXISTS idx_grace_resets_date ON grace_resets(date);
     CREATE INDEX IF NOT EXISTS idx_pause_events_created ON pause_events(created_at);
   `);
 
-  // Safe migration for existing dev databases
-  try {
-    await db.execAsync(
-      `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`
-    );
-  } catch {
-    // Column already exists
-  }
+  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
+  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN last_opened_at TEXT;`);
+  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN trusted_ally_name TEXT;`);
+  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN trusted_ally_phone TEXT;`);
 
+  const nowIso = new Date().toISOString();
   await db.runAsync(
-    `INSERT OR IGNORE INTO user_preferences (id, onboarded_at, onboarding_completed) VALUES (1, ?, 0);`,
-    [new Date().toISOString()]
+    `INSERT OR IGNORE INTO user_preferences (id, onboarded_at, onboarding_completed, last_opened_at) VALUES (1, ?, 0, ?);`,
+    [nowIso, nowIso]
   );
 
   for (const [tag, text] of Object.entries(DEFAULT_OFF_RAMPS)) {

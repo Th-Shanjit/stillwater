@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,7 +31,9 @@ import {
   StepBar,
   useScreenInset,
 } from '../components/RoyalUI';
+import { AudioRescuePlayer, RescueAudioTrack } from '../components/AudioRescuePlayer';
 import breathPrayers from '../assets/content/breath_prayers.json';
+import midnightAudioData from '../assets/content/midnight_audio.json';
 
 type PauseStep = 'breathe' | 'weather' | 'fork' | 'surf';
 
@@ -46,29 +47,11 @@ const EMOTIONS = [
   { key: 'autopilot', label: 'Pure autopilot', heading: 'You caught the habit before it ran the script.' },
 ] as const;
 
-const SURF_PROMPTS = [
-  'You made it here before autopilot took over. Don’t try to force the craving out of your head—fighting a thought only hands it a megaphone.',
-  'Unclench your jaw. Drop your shoulders an inch away from your ears. Let your breath stay slow and unhurried.',
-  'An urge feels permanent when it hits, like an alarm that won’t stop until you obey it. Biologically, it is a wave—it builds, crests, and breaks on its own if you stay on the shore.',
-  'The early desert monks noticed that stray images knock on every human mind. A thought knocking at the door is not a sin—it is just weather passing through.',
-  'Ask quietly: What am I actually tired of or hungry for right now? Name that real need honestly before God. He is not annoyed by how human you are.',
-  'When this timer finishes, don’t open another app. Lock the screen, set the phone out of reach, and do one ordinary physical thing.',
-];
+const FREE_SURF_TRACK = (midnightAudioData as RescueAudioTrack[])[0];
 
 export default function PauseModal() {
   const router = useRouter();
   const { inset, isNarrow } = useScreenInset();
-  const { width, height, fontScale } = useWindowDimensions();
-
-  const largeText = fontScale > 1.3;
-
-  const ringSize = Math.floor(
-    Math.min(
-      largeText ? 180 : 264,
-      Math.max(0, width - inset * 2 - 16),
-      Math.max(160, height * 0.34)
-    )
-  );
   const [step, setStep] = useState<PauseStep>('breathe');
   const [track, setTrack] = useState<ToneTrack>('scripture');
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -76,8 +59,7 @@ export default function PauseModal() {
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
   const [selectedEmotion, setSelectedEmotion] = useState<(typeof EMOTIONS)[number] | null>(null);
   const [offRamp, setOffRamp] = useState('');
-  const [surfSecondsLeft, setSurfSecondsLeft] = useState(180);
-  const [usedSurf, setUsedSurf] = useState(false);
+  const [usedAudio, setUsedAudio] = useState(false);
 
   const ringScale = useSharedValue(0.86);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -144,22 +126,6 @@ export default function PauseModal() {
     };
   }, [step, activePrayer, totalCycles, ringScale, reduceMotion]);
 
-  useEffect(() => {
-    if (step !== 'surf') return;
-    setUsedSurf(true);
-    const interval = setInterval(() => {
-      setSurfSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [step]);
-
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: reduceMotion ? 1 : ringScale.value }],
   }));
@@ -176,17 +142,12 @@ export default function PauseModal() {
     await logPauseEvent({
       emotionTag: selectedEmotion?.key,
       breathCyclesCompleted: cyclesCompleted,
-      usedAudio: usedSurf,
+      usedAudio,
       outcome,
     });
     router.back();
   };
 
-  const surfIndex = Math.min(
-    SURF_PROMPTS.length - 1,
-    Math.floor((180 - surfSecondsLeft) / 30)
-  );
-  const formattedTimer = `${Math.floor(surfSecondsLeft / 60)}:${String(surfSecondsLeft % 60).padStart(2, '0')}`;
   const currentStepIdx = step === 'breathe' ? 0 : step === 'weather' ? 1 : 2;
 
   return (
@@ -208,105 +169,43 @@ export default function PauseModal() {
       </View>
 
       {step === 'breathe' && (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            styles.centerStage,
-            { paddingHorizontal: inset },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.breathHero}>
-            <View
-              style={[
-                styles.ringWrapper,
-                { minHeight: ringSize },
-              ]}
-            >
-              <Animated.View
-                style={[
-                  styles.ringsAbsolute,
-                  largeText && styles.ringsInline,
-                  {
-                    width: ringSize,
-                    height: ringSize,
-                    borderRadius: ringSize / 2,
-                  },
-                  animatedRingStyle,
-                ]}
-              >
-                <BreathRings
-                  color={Palette.night.breathRing}
-                  size={ringSize}
-                />
-              </Animated.View>
-
-              <View
-                style={[
-                  styles.innerText,
-                  {
-                    width: largeText
-                      ? '100%'
-                      : ringSize * 0.74,
-                  },
-                ]}
-              >
-                <Text style={styles.phaseLabel}>
-                  {cyclesCompleted >= totalCycles
-                    ? 'STEADY'
-                    : phase === 'inhale'
-                      ? 'INHALE \u00B7 4s'
-                      : 'EXHALE \u00B7 6s'}
-                </Text>
-
-                <Text style={styles.prayerText}>
-                  {cyclesCompleted >= totalCycles
-                    ? 'Your body has slowed down.'
-                    : phase === 'inhale'
-                      ? activePrayer.inhaleText
-                      : activePrayer.exhaleText}
-                </Text>
-              </View>
+        <View style={[styles.centerStage, { paddingHorizontal: inset }]}>
+          <View style={styles.ringWrapper}>
+            <Animated.View style={[styles.ringsAbsolute, animatedRingStyle]}>
+              <BreathRings color={Palette.night.breathRing} size={230} />
+            </Animated.View>
+            <View style={styles.innerText}>
+              <Text style={styles.phaseLabel}>
+                {cyclesCompleted >= totalCycles
+                  ? 'STEADY'
+                  : phase === 'inhale'
+                    ? 'INHALE · 4s'
+                    : 'EXHALE · 6s'}
+              </Text>
+              <Text style={styles.prayerText}>
+                {cyclesCompleted >= totalCycles
+                  ? 'Your body has slowed down.'
+                  : phase === 'inhale'
+                    ? activePrayer.inhaleText
+                    : activePrayer.exhaleText}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.breathFooter}>
-            <Text style={styles.cycleCount}>
-              {Math.min(cyclesCompleted, totalCycles)} of {totalCycles} slow breaths
-            </Text>
+          <Text style={styles.cycleCount}>
+            {Math.min(cyclesCompleted, totalCycles)} of {totalCycles} slow breaths
+          </Text>
 
-            <View
-              style={styles.breathProgress}
-              accessible={false}
-              importantForAccessibility="no-hide-descendants"
-            >
-              {Array.from({ length: totalCycles }).map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.breathDot,
-                    index < cyclesCompleted && styles.breathDotDone,
-                  ]}
-                />
-              ))}
-            </View>
-
-            <View style={styles.bottomActions}>
-              {cyclesCompleted >= totalCycles ? (
-                <PrimaryButton
-                  label="Continue"
-                  onPress={() => setStep('weather')}
-                />
-              ) : (
-                <SecondaryButton
-                  label="Skip ahead to check-in"
-                  mode="night"
-                  onPress={() => setStep('weather')}
-                />
-              )}
-            </View>
-          </View>
-        </ScrollView>
+          {cyclesCompleted >= totalCycles ? (
+            <PrimaryButton label="Continue" onPress={() => setStep('weather')} />
+          ) : (
+            <SecondaryButton
+              label="Skip ahead to check-in"
+              mode="night"
+              onPress={() => setStep('weather')}
+            />
+          )}
+        </View>
       )}
 
       {step === 'weather' && (
@@ -361,35 +260,24 @@ export default function PauseModal() {
               onPress={() => handleFinish('steady')}
             />
             <SecondaryButton
-              label="Ride out 3 more minutes"
+              label="Ride out 3 more minutes (Eyes-Closed Audio)"
               mode="night"
-              onPress={() => setStep('surf')}
+              onPress={() => {
+                setUsedAudio(true);
+                setStep('surf');
+              }}
             />
           </View>
         </ScrollView>
       )}
 
       {step === 'surf' && (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            styles.centerStage,
-            { paddingHorizontal: inset },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.timerText}>{formattedTimer}</Text>
-          <Text style={styles.surfBody}>{SURF_PROMPTS[surfIndex]}</Text>
-          <Text style={styles.cycleCount}>
-            {surfSecondsLeft === 0
-              ? 'The wave has passed. Put the phone down.'
-              : 'Stay on the shore. Let the wave crest and fall.'}
-          </Text>
-          <PrimaryButton
-            label={surfSecondsLeft === 0 ? 'Put phone down & close' : 'I’m steady now'}
-            onPress={() => handleFinish('steady')}
+        <View style={{ flex: 1, paddingHorizontal: inset, paddingBottom: Spacing.xl }}>
+          <AudioRescuePlayer
+            track={FREE_SURF_TRACK}
+            onComplete={() => handleFinish('steady')}
           />
-        </ScrollView>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -413,22 +301,14 @@ const styles = StyleSheet.create({
     color: Palette.night.primaryTonalText,
   },
   centerStage: {
-    flexGrow: 1,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.xl,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
-  },
-  breathHero: {
-    flexGrow: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
   },
   ringWrapper: {
-    width: '100%',
+    width: 240,
+    height: 240,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -436,55 +316,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Palette.night.surface,
   },
-  ringsInline: {
-    position: 'relative',
-    marginBottom: Spacing.lg,
-  },
-  innerText: {
-    alignItems: 'center',
-    gap: Spacing.md,
-    zIndex: 1,
-  },
-  breathFooter: {
-    width: '100%',
-    maxWidth: 480,
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  breathProgress: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  breathDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: Palette.night.breathRing,
-    backgroundColor: 'transparent',
-  },
-  breathDotDone: {
-    backgroundColor: Palette.night.scriptureGold,
-    borderColor: Palette.night.scriptureGold,
-  },
-  bottomActions: {
-    width: '100%',
-    marginTop: Spacing.lg,
-  },
+  innerText: { width: 205, alignItems: 'center', gap: Spacing.sm },
   phaseLabel: {
     ...Typography.label,
     color: Palette.night.scriptureGold,
     letterSpacing: 1.2,
   },
   prayerText: {
-    fontFamily: Typography.scriptureFamily,
-    fontStyle: 'italic',
-    fontSize: 23,
-    lineHeight: 32,
+    fontFamily: Typography.scriptureItalicFamily,
+    fontSize: 22,
+    lineHeight: 30,
     color: Palette.night.text,
     textAlign: 'center',
   },
@@ -518,17 +360,4 @@ const styles = StyleSheet.create({
     color: Palette.night.text,
   },
   forkButtons: { gap: Spacing.md, marginTop: Spacing.sm },
-  timerText: {
-    ...Typography.metric,
-    fontSize: 64,
-    lineHeight: 72,
-    color: Palette.night.scriptureGold,
-  },
-  surfBody: {
-    fontFamily: Typography.scriptureFamily,
-    fontSize: 21,
-    lineHeight: 31,
-    color: Palette.night.text,
-    textAlign: 'center',
-  },
 });
