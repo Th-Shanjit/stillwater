@@ -1,0 +1,29 @@
+[
+  {
+    "id": "bp_stillness",
+    "track": "both",
+    "inhaleText": "Lord, be my stillness.",
+    "exhaleText": "This wave will pass.",
+    "inhaleMs": 4000,
+    "exhaleMs": 6000,
+    "defaultCycles": 6
+  },
+  {
+    "id": "bp_undivided",
+    "track": "scripture",
+    "inhaleText": "Unite my scattered heart.",
+    "exhaleText": "I do not have to chase this.",
+    "inhaleMs": 4000,
+    "exhaleMs": 6000,
+    "defaultCycles": 6
+  },
+  {
+    "id": "bp_jesus_prayer",
+    "track": "liturgical",
+    "inhaleText": "Lord Jesus Christ, have mercy.",
+    "exhaleText": "Hold my restless mind.",
+    "inhaleMs": 4000,
+    "exhaleMs": 6000,
+    "defaultCycles": 6
+  }
+]

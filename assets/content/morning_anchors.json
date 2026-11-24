@@ -1,0 +1,38 @@
+[
+  {
+    "dayIndex": 1,
+    "theme": "undivided_heart",
+    "tracks": {
+      "scripture": {
+        "source": "Psalm 86:11",
+        "excerpt": "Give me an undivided heart, that I may walk in your truth.",
+        "reflection": "Most urges do not come from malice—they come from a scattered, tired mind looking for an exit. Today does not ask for perfection; it only asks for your attention in the hour in front of you.",
+        "intentionPrompt": "What is one small boundary that will keep your evening quiet?"
+      },
+      "liturgical": {
+        "source": "Psalm 86 · Morning Watch",
+        "excerpt": "Unite my heart, O Lord, to walk steadily before you.",
+        "reflection": "The early desert fathers taught that a divided mind is easily pulled by passing noise. Begin this morning slowly, offering the ordinary hours ahead before the rush takes over.",
+        "intentionPrompt": "Name one stillness boundary you will hold tonight."
+      }
+    }
+  },
+  {
+    "dayIndex": 2,
+    "theme": "new_mercies",
+    "tracks": {
+      "scripture": {
+        "source": "Lamentations 3:22-23",
+        "excerpt": "His compassions never fail. They are new every morning.",
+        "reflection": "Yesterday is closed. Whether it was steady or hard, you do not have to carry its ledger into today. Grace meets you at the start of the day, not after you prove yourself.",
+        "intentionPrompt": "Where can you protect your energy before tonight arrives?"
+      },
+      "liturgical": {
+        "source": "Lamentations 3 · Lauds",
+        "excerpt": "The steadfast love of the Lord never ceases; his mercies are fresh at dawn.",
+        "reflection": "Receive this morning as an uncluttered table. Practice simple watchfulness today—notice fatigue early, before it masquerades as craving.",
+        "intentionPrompt": "Choose one ordinary way to rest when stress peaks today."
+      }
+    }
+  }
+]
