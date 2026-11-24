@@ -50,7 +50,7 @@ export function StillwaterMark({
 }
 
 /** Original geometric stained-glass arch reserved exclusively for Scripture & prayer panels */
-export function StainedGlassArch({ style }: { style?: StyleProp<ViewStyle> }) {
+export function StainedGlassArch({ style, width = 148 }: { style?: StyleProp<ViewStyle>; width?: number }) {
   return (
     <View
       pointerEvents="none"
@@ -58,7 +58,7 @@ export function StainedGlassArch({ style }: { style?: StyleProp<ViewStyle> }) {
       importantForAccessibility="no-hide-descendants"
       style={[styles.archWrap, style]}
     >
-      <Svg width={148} height={194} viewBox="0 0 160 210">
+      <Svg width={width} height={Math.round(width * 210 / 160)} viewBox="0 0 160 210">
         <Defs>
           <ClipPath id="stillwaterArch">
             <Path d="M22 210V83a63 63 0 0 1 126 0v127Z" />
@@ -280,19 +280,23 @@ export function BreathRings({
 
 const styles = StyleSheet.create({
   header: {
-    minHeight: 54,
+    minHeight: 56,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Palette.light.background,
     paddingVertical: Spacing.xs,
+    gap: Spacing.sm,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
     gap: Spacing.sm,
   },
   wordmark: {
+    flexShrink: 1,
     fontFamily: Typography.sansFamily,
     fontSize: 22,
     fontWeight: '700',
@@ -301,8 +305,10 @@ const styles = StyleSheet.create({
   },
   headerPauseBtn: {
     minHeight: Sizes.minTouchTarget,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.standard,
+    maxWidth: '100%',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.circle,
     backgroundColor: Palette.light.supportBackground,
     borderWidth: Sizes.borderWidth,
     borderColor: Palette.light.supportBorder,
@@ -310,6 +316,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerPauseText: {
+    textAlign: 'center',
     fontFamily: Typography.sansFamily,
     fontSize: 13,
     fontWeight: '600',

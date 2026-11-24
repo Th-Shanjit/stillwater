@@ -27,6 +27,12 @@ export default function TodayScreen() {
   const [clarityCount, setClarityCount] = useState(0);
   const [activeDays, setActiveDays] = useState(0);
   const [morningDone, setMorningDone] = useState(false);
+  const [calendarWidth, setCalendarWidth] = useState(0);
+  const calendarGap = 6;
+  const calendarCellWidth = Math.max(
+    0,
+    Math.floor((calendarWidth - calendarGap * 6) / 7)
+  );
 
   const loadData = useCallback(async () => {
     const prefs = await getPreferences();
@@ -80,15 +86,23 @@ export default function TodayScreen() {
 
         {/* Morning Anchor — Liturgical Violet Scripture Panel */}
         <View style={styles.scriptureCard}>
-          <StainedGlassArch />
           <View style={styles.scriptureInner}>
             <Text style={styles.scriptureEyebrow}>
               MORNING ANCHOR · {copy.source.toUpperCase()}
             </Text>
-            <Text style={styles.scriptureQuote}>“{copy.excerpt}”</Text>
-            <Text style={styles.scriptureBody}>{copy.reflection}</Text>
+            <View style={styles.scriptureComposition}>
+              <Text style={styles.scriptureQuote}>“{copy.excerpt}”</Text>
+              <StainedGlassArch
+                width={isNarrow ? 64 : 86}
+                style={styles.scriptureArt}
+              />
+            </View>
+          </View>
+        </View>
 
-            <Pressable
+        <View style={styles.reflectionBlock}>
+          <Text style={styles.scriptureBody}>{copy.reflection}</Text>
+          <Pressable
               onPress={handleCarryToday}
               accessibilityRole="button"
               accessibilityState={{ selected: morningDone }}
@@ -104,8 +118,7 @@ export default function TodayScreen() {
               <Text style={[styles.carryBtnText, morningDone && styles.carryBtnTextDone]}>
                 {morningDone ? 'Carried into today' : 'Carry this today'}
               </Text>
-            </Pressable>
-          </View>
+          </Pressable>
         </View>
 
         {/* 30-Day Clarity Panel — White Grouped Surface */}
@@ -128,7 +141,12 @@ export default function TodayScreen() {
             </Text>
           </View>
 
-          <View style={styles.calendarGrid}>
+          <View
+            style={styles.calendarGrid}
+            onLayout={(event) =>
+              setCalendarWidth(event.nativeEvent.layout.width)
+            }
+          >
             {grid.map((day) => {
               const isToday = day.date === todayStr;
               const dayNum = Number(day.date.slice(8, 10));
@@ -136,9 +154,14 @@ export default function TodayScreen() {
                 <View
                   key={day.date}
                   accessible
-                  accessibilityLabel={`${day.date}: ${day.status}`}
+                  accessibilityLabel={`${day.date}: ${day.status}${isToday ? ', today' : ''}`}
                   style={[
                     styles.cell,
+                    {
+                      width: calendarWidth > 0
+                        ? calendarCellWidth
+                        : '12%',
+                    },
                     day.status === 'clarity' && styles.cellClarity,
                     day.status === 'returned' && styles.cellReturned,
                     isToday && styles.cellToday,
@@ -153,9 +176,49 @@ export default function TodayScreen() {
                   >
                     {dayNum}
                   </Text>
+                  <Text
+                    style={[
+                      styles.cellSymbol,
+                      day.status === 'clarity' && styles.cellTextClarity,
+                      day.status === 'returned' && styles.cellTextReturned,
+                    ]}
+                  >
+                    {day.status === 'clarity'
+                      ? '\u2713'
+                      : day.status === 'returned'
+                        ? '\u21B6'
+                        : '\u00B7'}
+                  </Text>
                 </View>
               );
             })}
+          </View>
+
+          <View style={styles.calendarLegend}>
+            <Text style={[
+              styles.legendText,
+              { color: Palette.light.success },
+            ]}>
+              {'\u2713'} Clarity
+            </Text>
+
+            <Text style={[
+              styles.legendText,
+              { color: Palette.light.scripture },
+            ]}>
+              {'\u21B6'} Returned
+            </Text>
+
+            <Text style={styles.legendText}>
+              {'\u00B7'} Other days
+            </Text>
+
+            <Text style={[
+              styles.legendText,
+              { color: Palette.light.primary },
+            ]}>
+              {'\u25A1'} Today
+            </Text>
           </View>
         </View>
 
@@ -224,9 +287,26 @@ const styles = StyleSheet.create({
     borderRadius: Radius.feature,
     overflow: 'hidden',
     padding: 20,
-    minHeight: 210,
+    minHeight: 152,
   },
-  scriptureInner: { gap: Spacing.md, zIndex: 1 },
+  scriptureInner: {
+    gap: Spacing.md,
+  },
+  scriptureComposition: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  scriptureArt: {
+    position: 'relative',
+    right: 0,
+    bottom: 0,
+    opacity: 1,
+    flexShrink: 0,
+  },
+  reflectionBlock: {
+    gap: Spacing.md,
+  },
   scriptureEyebrow: {
     ...Typography.label,
     color: Palette.light.scriptureGold,
@@ -234,19 +314,20 @@ const styles = StyleSheet.create({
   scriptureQuote: {
     ...Typography.scripture,
     color: Palette.light.scriptureText,
-    maxWidth: '82%',
+    flex: 1,
+    minWidth: 0,
   },
   scriptureBody: {
     ...Typography.body,
     fontSize: 15,
     lineHeight: 22,
-    color: Palette.light.scriptureSecondary,
+    color: Palette.light.textSecondary,
   },
   carryBtn: {
     marginTop: Spacing.xs,
     minHeight: Sizes.primaryButtonHeight,
     borderRadius: Radius.standard,
-    backgroundColor: Palette.light.surface,
+    backgroundColor: Palette.light.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -258,7 +339,7 @@ const styles = StyleSheet.create({
   },
   carryBtnText: {
     ...Typography.button,
-    color: Palette.light.scripture,
+    color: Palette.light.onPrimary,
   },
   carryBtnTextDone: {
     color: Palette.light.onPrimary,
@@ -307,8 +388,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cell: {
-    width: '12.5%',
-    aspectRatio: 1,
+    minHeight: 40,
+    paddingVertical: 4,
+    gap: 2,
     borderRadius: Radius.small,
     backgroundColor: Palette.light.background,
     borderWidth: Sizes.borderWidth,
@@ -334,6 +416,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
+    color: Palette.light.textSecondary,
+  },
+  cellSymbol: {
+    fontFamily: Typography.sansFamily,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Palette.light.textSecondary,
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 12,
+    rowGap: 8,
+    paddingTop: Spacing.xs,
+  },
+  legendText: {
+    ...Typography.secondary,
+    fontSize: 12,
+    fontWeight: '500',
     color: Palette.light.textSecondary,
   },
   cellTextClarity: { color: Palette.light.onPrimary },

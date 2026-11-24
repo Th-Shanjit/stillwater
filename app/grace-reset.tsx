@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Feather } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -24,6 +25,7 @@ import {
   PrimaryButton,
   SecondaryButton,
   StepBar,
+  StillwaterMark,
   useScreenInset,
 } from '../components/RoyalUI';
 
@@ -194,7 +196,11 @@ export default function GraceResetModal() {
               </Text>
               <PrimaryButton label="Take a 60-second breath" onPress={() => handleBingeAction(true)} />
               <SecondaryButton label="Close & step away from the phone" onPress={() => handleBingeAction(false)} />
-              <Pressable onPress={() => setStep('debrief')} style={styles.linkBtn}>
+              <Pressable
+                onPress={() => setStep('debrief')}
+                accessibilityRole="button"
+                style={styles.linkBtn}
+              >
                 <Text style={styles.linkText}>I’m calm—log what happened anyway</Text>
               </Pressable>
             </View>
@@ -206,6 +212,10 @@ export default function GraceResetModal() {
                 Stop right here.
               </Text>
               <View style={styles.callout}>
+                <StillwaterMark
+                  size={30}
+                  color={Palette.light.scriptureGold}
+                />
                 <Text style={styles.calloutText}>
                   Shame wants you to hide, call yourself a fraud, and slip again to numb the sting. Grace wants you awake, honest, and still in the room.
                 </Text>
@@ -268,9 +278,30 @@ export default function GraceResetModal() {
                         Haptics.selectionAsync().catch(() => {});
                       }}
                     >
-                      <Text style={[styles.boundaryText, selected && styles.boundaryTextActive]}>
+                      <Text style={[
+                        styles.boundaryText,
+                        selected && styles.boundaryTextActive,
+                      ]}>
                         {item}
                       </Text>
+
+                      <View
+                        accessible={false}
+                        importantForAccessibility="no-hide-descendants"
+                        style={[
+                          styles.boundaryIndicator,
+                          selected &&
+                            styles.boundaryIndicatorActive,
+                        ]}
+                      >
+                        {selected && (
+                          <Feather
+                            name="check"
+                            size={15}
+                            color={Palette.light.onPrimary}
+                          />
+                        )}
+                      </View>
                     </Pressable>
                   );
                 })}
@@ -280,6 +311,9 @@ export default function GraceResetModal() {
                 style={styles.input}
                 placeholder="Or write your own small shift..."
                 placeholderTextColor={Palette.light.textSecondary}
+                accessibilityLabel="Custom boundary"
+                selectionColor={Palette.light.primary}
+                keyboardAppearance="light"
                 value={customBoundary}
                 onChangeText={setCustomBoundary}
               />
@@ -294,6 +328,12 @@ export default function GraceResetModal() {
 
           {step === 'lament' && (
             <View style={styles.block}>
+              <View style={styles.lamentMark}>
+                <StillwaterMark
+                  size={34}
+                  color={Palette.light.scripture}
+                />
+              </View>
               <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
                 Say one unfiltered line to God.
               </Text>
@@ -306,6 +346,9 @@ export default function GraceResetModal() {
                   style={[styles.input, styles.lamentBox]}
                   placeholder="Honestly, I’m just tired of..."
                   placeholderTextColor={Palette.light.textSecondary}
+                  accessibilityLabel="Your lament"
+                  selectionColor={Palette.light.scripture}
+                  keyboardAppearance="light"
                   multiline
                   value={lamentText}
                   onChangeText={setLamentText}
@@ -320,18 +363,53 @@ export default function GraceResetModal() {
                 style={styles.holdBtn}
               >
                 <Animated.View style={[styles.holdFill, fillBarStyle]} />
-                <Text style={styles.holdBtnText}>Press & hold (2s) to lay this down</Text>
+                <View style={styles.holdContent}>
+                  <Feather
+                    name="unlock"
+                    size={19}
+                    color={Palette.light.scripture}
+                  />
+                  <Text style={styles.holdBtnText}>
+                    Press & hold (2s) to lay this down
+                  </Text>
+                </View>
               </Pressable>
             </View>
           )}
 
           {step === 'closed' && (
-            <View style={styles.block}>
-              <Text style={[styles.eyebrow, { color: Palette.light.success }]}>LEDGER CLOSED</Text>
-              <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
+            <View style={[styles.block, styles.closedStage]}>
+              <View
+                style={styles.closedHalo}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+              >
+                <View style={styles.closedHaloInner}>
+                  <Feather
+                    name="check-circle"
+                    size={44}
+                    color={Palette.light.success}
+                  />
+                </View>
+              </View>
+
+              <Text style={[
+                styles.eyebrow,
+                styles.closedEyebrow,
+              ]}>
+                LEDGER CLOSED
+              </Text>
+
+              <Text style={[
+                Typography.display,
+                isNarrow && Typography.displayNarrow,
+                styles.title,
+                styles.closedTitle,
+              ]}>
                 Mercy does not run out at midnight.
               </Text>
-              <Text style={styles.body}>
+
+              <Text style={[styles.body, styles.closedBody]}>
                 Today has been marked as an honest return, not a failure. Close the app, drink some water, and go live the rest of your day in the light.
               </Text>
               <PrimaryButton
@@ -364,18 +442,26 @@ const styles = StyleSheet.create({
     color: Palette.light.primary,
   },
   container: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.lg },
-  block: { gap: Spacing.lg },
+  block: {
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
+    gap: Spacing.lg,
+  },
   title: { color: Palette.light.text },
   body: { ...Typography.body, color: Palette.light.textSecondary },
   callout: {
-    backgroundColor: Palette.light.scriptureTonal,
-    borderRadius: Radius.standard,
-    padding: Spacing.lg,
+    backgroundColor: Palette.light.scripture,
+    borderRadius: Radius.feature,
+    padding: Spacing.xl,
+    gap: Spacing.lg,
   },
+
   calloutText: {
     ...Typography.body,
-    fontSize: 15,
-    color: Palette.light.scripture,
+    fontSize: 17,
+    lineHeight: 26,
+    color: Palette.light.scriptureText,
   },
   supportNotice: {
     backgroundColor: Palette.light.supportBackground,
@@ -399,13 +485,32 @@ const styles = StyleSheet.create({
   pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   boundaryList: { gap: Spacing.sm },
   boundaryCard: {
-    minHeight: Sizes.minTouchTarget,
+    minHeight: 64,
     backgroundColor: Palette.light.surface,
-    borderWidth: Sizes.borderWidth,
+    borderWidth: 2,
     borderColor: Palette.light.border,
     padding: Spacing.lg,
     borderRadius: Radius.standard,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+
+  boundaryIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Palette.light.textSecondary,
+    alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  boundaryIndicatorActive: {
+    backgroundColor: Palette.light.primary,
+    borderColor: Palette.light.primary,
   },
   boundaryCardActive: {
     backgroundColor: Palette.light.primaryTonal,
@@ -413,6 +518,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   boundaryText: {
+    flex: 1,
     fontFamily: Typography.sansFamily,
     fontSize: 15,
     fontWeight: '500',
@@ -423,6 +529,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
+    minHeight: Sizes.primaryButtonHeight,
     backgroundColor: Palette.light.input,
     borderWidth: Sizes.borderWidth,
     borderColor: Palette.light.border,
@@ -431,13 +538,25 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Palette.light.text,
   },
-  lamentBox: { minHeight: 132, textAlignVertical: 'top' },
+  lamentMark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: Spacing.sm,
+  },
+
+  lamentBox: {
+    minHeight: 180,
+    padding: Spacing.lg,
+    textAlignVertical: 'top',
+    borderRadius: Radius.group,
+  },
   linkBtn: { minHeight: Sizes.minTouchTarget, justifyContent: 'center', alignItems: 'center' },
   linkText: { ...Typography.secondary, color: Palette.light.textSecondary },
   holdBtn: {
     position: 'relative',
     overflow: 'hidden',
-    minHeight: Sizes.primaryButtonHeight,
+    minHeight: 60,
+    paddingVertical: Spacing.md,
     backgroundColor: Palette.light.surface,
     borderWidth: 2,
     borderColor: Palette.light.scripture,
@@ -453,8 +572,58 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: Palette.light.scriptureSecondary,
   },
+  holdContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    width: '100%',
+    zIndex: 1,
+  },
+
   holdBtnText: {
     ...Typography.button,
+    flexShrink: 1,
+    textAlign: 'center',
     color: Palette.light.scripture,
+  },
+
+  closedStage: {
+    alignItems: 'center',
+    gap: Spacing.xl,
+  },
+
+  closedHalo: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    borderColor: 'rgba(25, 117, 77, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  closedHaloInner: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: 'rgba(25, 117, 77, 0.09)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  closedEyebrow: {
+    color: Palette.light.success,
+    letterSpacing: 1.2,
+    textAlign: 'center',
+  },
+
+  closedTitle: {
+    textAlign: 'center',
+  },
+
+  closedBody: {
+    textAlign: 'center',
+    maxWidth: 380,
   },
 });

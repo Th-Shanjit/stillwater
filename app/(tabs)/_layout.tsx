@@ -17,13 +17,17 @@ export default function TabsLayout() {
           elevation: 0,
           shadowOpacity: 0,
           minHeight: 62,
-          paddingTop: 6,
+          paddingTop: 4,
+        },
+        tabBarItemStyle: {
+          minHeight: Sizes.minTouchTarget,
+          paddingVertical: 2,
         },
         tabBarActiveTintColor: Palette.light.primary,
         tabBarInactiveTintColor: Palette.light.textSecondary,
         tabBarLabelStyle: {
           ...Typography.tab,
-          marginBottom: 4,
+          marginBottom: 2,
         },
       }}
     >

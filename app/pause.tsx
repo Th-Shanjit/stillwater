@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +58,17 @@ const SURF_PROMPTS = [
 export default function PauseModal() {
   const router = useRouter();
   const { inset, isNarrow } = useScreenInset();
+  const { width, height, fontScale } = useWindowDimensions();
+
+  const largeText = fontScale > 1.3;
+
+  const ringSize = Math.floor(
+    Math.min(
+      largeText ? 180 : 264,
+      Math.max(0, width - inset * 2 - 16),
+      Math.max(160, height * 0.34)
+    )
+  );
   const [step, setStep] = useState<PauseStep>('breathe');
   const [track, setTrack] = useState<ToneTrack>('scripture');
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -196,43 +208,105 @@ export default function PauseModal() {
       </View>
 
       {step === 'breathe' && (
-        <View style={[styles.centerStage, { paddingHorizontal: inset }]}>
-          <View style={styles.ringWrapper}>
-            <Animated.View style={[styles.ringsAbsolute, animatedRingStyle]}>
-              <BreathRings color={Palette.night.breathRing} size={230} />
-            </Animated.View>
-            <View style={styles.innerText}>
-              <Text style={styles.phaseLabel}>
-                {cyclesCompleted >= totalCycles
-                  ? 'STEADY'
-                  : phase === 'inhale'
-                    ? 'INHALE · 4s'
-                    : 'EXHALE · 6s'}
-              </Text>
-              <Text style={styles.prayerText}>
-                {cyclesCompleted >= totalCycles
-                  ? 'Your body has slowed down.'
-                  : phase === 'inhale'
-                    ? activePrayer.inhaleText
-                    : activePrayer.exhaleText}
-              </Text>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.centerStage,
+            { paddingHorizontal: inset },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.breathHero}>
+            <View
+              style={[
+                styles.ringWrapper,
+                { minHeight: ringSize },
+              ]}
+            >
+              <Animated.View
+                style={[
+                  styles.ringsAbsolute,
+                  largeText && styles.ringsInline,
+                  {
+                    width: ringSize,
+                    height: ringSize,
+                    borderRadius: ringSize / 2,
+                  },
+                  animatedRingStyle,
+                ]}
+              >
+                <BreathRings
+                  color={Palette.night.breathRing}
+                  size={ringSize}
+                />
+              </Animated.View>
+
+              <View
+                style={[
+                  styles.innerText,
+                  {
+                    width: largeText
+                      ? '100%'
+                      : ringSize * 0.74,
+                  },
+                ]}
+              >
+                <Text style={styles.phaseLabel}>
+                  {cyclesCompleted >= totalCycles
+                    ? 'STEADY'
+                    : phase === 'inhale'
+                      ? 'INHALE \u00B7 4s'
+                      : 'EXHALE \u00B7 6s'}
+                </Text>
+
+                <Text style={styles.prayerText}>
+                  {cyclesCompleted >= totalCycles
+                    ? 'Your body has slowed down.'
+                    : phase === 'inhale'
+                      ? activePrayer.inhaleText
+                      : activePrayer.exhaleText}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <Text style={styles.cycleCount}>
-            {Math.min(cyclesCompleted, totalCycles)} of {totalCycles} slow breaths
-          </Text>
+          <View style={styles.breathFooter}>
+            <Text style={styles.cycleCount}>
+              {Math.min(cyclesCompleted, totalCycles)} of {totalCycles} slow breaths
+            </Text>
 
-          {cyclesCompleted >= totalCycles ? (
-            <PrimaryButton label="Continue" onPress={() => setStep('weather')} />
-          ) : (
-            <SecondaryButton
-              label="Skip ahead to check-in"
-              mode="night"
-              onPress={() => setStep('weather')}
-            />
-          )}
-        </View>
+            <View
+              style={styles.breathProgress}
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
+            >
+              {Array.from({ length: totalCycles }).map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.breathDot,
+                    index < cyclesCompleted && styles.breathDotDone,
+                  ]}
+                />
+              ))}
+            </View>
+
+            <View style={styles.bottomActions}>
+              {cyclesCompleted >= totalCycles ? (
+                <PrimaryButton
+                  label="Continue"
+                  onPress={() => setStep('weather')}
+                />
+              ) : (
+                <SecondaryButton
+                  label="Skip ahead to check-in"
+                  mode="night"
+                  onPress={() => setStep('weather')}
+                />
+              )}
+            </View>
+          </View>
+        </ScrollView>
       )}
 
       {step === 'weather' && (
@@ -296,7 +370,14 @@ export default function PauseModal() {
       )}
 
       {step === 'surf' && (
-        <View style={[styles.centerStage, { paddingHorizontal: inset }]}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.centerStage,
+            { paddingHorizontal: inset },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.timerText}>{formattedTimer}</Text>
           <Text style={styles.surfBody}>{SURF_PROMPTS[surfIndex]}</Text>
           <Text style={styles.cycleCount}>
@@ -308,7 +389,7 @@ export default function PauseModal() {
             label={surfSecondsLeft === 0 ? 'Put phone down & close' : 'I’m steady now'}
             onPress={() => handleFinish('steady')}
           />
-        </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -332,14 +413,22 @@ const styles = StyleSheet.create({
     color: Palette.night.primaryTonalText,
   },
   centerStage: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xl,
+  },
+  breathHero: {
+    flexGrow: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
   },
   ringWrapper: {
-    width: 240,
-    height: 240,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -347,17 +436,55 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Palette.night.surface,
   },
-  innerText: { width: 205, alignItems: 'center', gap: Spacing.sm },
+  ringsInline: {
+    position: 'relative',
+    marginBottom: Spacing.lg,
+  },
+  innerText: {
+    alignItems: 'center',
+    gap: Spacing.md,
+    zIndex: 1,
+  },
+  breathFooter: {
+    width: '100%',
+    maxWidth: 480,
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  breathProgress: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  breathDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Palette.night.breathRing,
+    backgroundColor: 'transparent',
+  },
+  breathDotDone: {
+    backgroundColor: Palette.night.scriptureGold,
+    borderColor: Palette.night.scriptureGold,
+  },
+  bottomActions: {
+    width: '100%',
+    marginTop: Spacing.lg,
+  },
   phaseLabel: {
     ...Typography.label,
     color: Palette.night.scriptureGold,
     letterSpacing: 1.2,
   },
   prayerText: {
-    fontFamily: Typography.scriptureItalicFamily,
-    fontSize: 22,
-    lineHeight: 30,
+    fontFamily: Typography.scriptureFamily,
+    fontStyle: 'italic',
+    fontSize: 23,
+    lineHeight: 32,
     color: Palette.night.text,
     textAlign: 'center',
   },
@@ -393,9 +520,9 @@ const styles = StyleSheet.create({
   forkButtons: { gap: Spacing.md, marginTop: Spacing.sm },
   timerText: {
     ...Typography.metric,
-    fontSize: 54,
-    lineHeight: 58,
-    color: Palette.night.primaryTonalText,
+    fontSize: 64,
+    lineHeight: 72,
+    color: Palette.night.scriptureGold,
   },
   surfBody: {
     fontFamily: Typography.scriptureFamily,

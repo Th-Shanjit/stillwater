@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +20,6 @@ import {
   PrimaryButton,
   SecondaryButton,
   StainedGlassArch,
-  StepBar,
   StillwaterMark,
   useScreenInset,
 } from '../components/RoyalUI';
@@ -39,6 +39,9 @@ const DRAINED_OPTIONS = [
 export default function ExamenModal() {
   const router = useRouter();
   const { inset, isNarrow } = useScreenInset();
+  const { fontScale } = useWindowDimensions();
+
+  const stackPrayerArt = isNarrow || fontScale > 1.2;
   const [step, setStep] = useState<ExamenStep>('consolation');
   const [track, setTrack] = useState<ToneTrack>('scripture');
   const [gratitude, setGratitude] = useState('');
@@ -84,7 +87,21 @@ export default function ExamenModal() {
             </Pressable>
           </View>
           <View style={{ paddingHorizontal: inset }}>
-            <StepBar total={3} current={stepIndex} mode="night" />
+            <View
+              style={styles.examenProgress}
+              accessible
+              accessibilityLabel={`Step ${stepIndex + 1} of 3`}
+            >
+              {Array.from({ length: 3 }).map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.progressSegment,
+                    index <= stepIndex && styles.progressSegmentActive,
+                  ]}
+                />
+              ))}
+            </View>
           </View>
         </>
       )}
@@ -100,6 +117,12 @@ export default function ExamenModal() {
         >
           {step === 'consolation' && (
             <View style={styles.block}>
+              <View style={styles.reflectionMark}>
+                <StillwaterMark
+                  size={32}
+                  color={Palette.night.scriptureGold}
+                />
+              </View>
               <Text style={styles.stepNum}>1 OF 3 · WHERE GRACE MET YOU</Text>
               <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.heading]}>
                 {prompt.consolation}
@@ -108,6 +131,9 @@ export default function ExamenModal() {
                 style={styles.input}
                 placeholder="One quiet line (optional)..."
                 placeholderTextColor={Palette.night.textSecondary}
+                selectionColor={Palette.night.breathRing}
+                keyboardAppearance="dark"
+                accessibilityLabel={prompt.consolation}
                 multiline
                 value={gratitude}
                 onChangeText={setGratitude}
@@ -149,13 +175,22 @@ export default function ExamenModal() {
                 Release what is unfinished.
               </Text>
 
-              <View style={styles.prayerCard}>
-                <StainedGlassArch />
+              <View
+                style={[
+                  styles.prayerCard,
+                  stackPrayerArt && styles.prayerCardStacked,
+                ]}
+              >
                 <Text style={styles.prayerText}>
                   {track === 'scripture'
                     ? '“You carried enough today. Hand the rest of the weight over—you are not required to hold the world together while you sleep.”'
                     : '“Into your hands I place the unfinished hours, the quiet wins, and the tired edges of today.”'}
                 </Text>
+
+                <StainedGlassArch
+                  width={stackPrayerArt ? 56 : 66}
+                  style={styles.prayerArtwork}
+                />
               </View>
 
               <PrimaryButton label="Lay the day down" onPress={handleComplete} />
@@ -164,7 +199,18 @@ export default function ExamenModal() {
 
           {step === 'goodnight' && (
             <View style={styles.goodnightStage}>
-              <StillwaterMark size={38} color={Palette.night.scriptureGold} />
+              <View
+                style={styles.goodnightHalo}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+              >
+                <View style={styles.goodnightHaloInner}>
+                  <StillwaterMark
+                    size={42}
+                    color={Palette.night.scriptureGold}
+                  />
+                </View>
+              </View>
               <Text style={[Typography.display, styles.goodnightTitle]}>Today is finished.</Text>
               <Text style={styles.goodnightSub}>
                 Plug your phone in across the room and rest.
@@ -200,7 +246,31 @@ const styles = StyleSheet.create({
     color: Palette.night.primaryTonalText,
   },
   container: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.xl },
-  block: { gap: Spacing.lg },
+  block: {
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
+    gap: Spacing.xl,
+  },
+  examenProgress: {
+    flexDirection: 'row',
+    gap: 7,
+    marginBottom: Spacing.lg,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: Palette.night.border,
+  },
+  progressSegmentActive: {
+    backgroundColor: Palette.night.scriptureGold,
+  },
+  reflectionMark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: Spacing.sm,
+  },
   stepNum: { ...Typography.label, color: Palette.night.scriptureGold },
   heading: { color: Palette.night.text },
   subtext: { ...Typography.body, color: Palette.night.textSecondary },
@@ -210,7 +280,7 @@ const styles = StyleSheet.create({
     borderColor: Palette.night.border,
     borderRadius: Radius.standard,
     padding: Spacing.lg,
-    minHeight: 120,
+    minHeight: 152,
     textAlignVertical: 'top',
     ...Typography.body,
     color: Palette.night.text,
@@ -220,17 +290,53 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.night.scripture,
     borderRadius: Radius.feature,
     overflow: 'hidden',
-    padding: 22,
+    padding: 20,
     minHeight: 175,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  prayerCardStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  prayerArtwork: {
+    position: 'relative',
+    right: 0,
+    bottom: 0,
+    opacity: 1,
+    flexShrink: 0,
+    alignSelf: 'center',
   },
   prayerText: {
     ...Typography.scripture,
     fontFamily: Typography.scriptureItalicFamily,
-    fontSize: 21,
-    lineHeight: 30,
+    fontStyle: Platform.OS === 'android' ? 'normal' : 'italic',
+    fontSize: 22,
+    lineHeight: 32,
     color: Palette.night.scriptureText,
-    zIndex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  goodnightHalo: {
+    width: 152,
+    height: 152,
+    borderRadius: 76,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 216, 127, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+  },
+  goodnightHaloInner: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: Palette.night.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 216, 127, 0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   goodnightStage: {
     alignItems: 'center',

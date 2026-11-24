@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
+import { StatusBar } from 'expo-status-bar';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {
   Newsreader_400Regular,
@@ -21,6 +22,13 @@ export default function RootLayout() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const appStateRef = useRef(AppState.currentState);
+
+  const isSanctuaryScreen =
+    segments[0] === 'pause' ||
+    segments[0] === 'examen';
+
+  const useLightSystemIcons =
+    isSanctuaryScreen && !isLocked;
 
   const [fontsLoaded] = useFonts({
     Newsreader_400Regular,
@@ -84,19 +92,57 @@ export default function RootLayout() {
   if (!dbReady || !fontsLoaded) {
     return (
       <View style={styles.center}>
+        <StatusBar style="dark" />
         <ActivityIndicator color={Palette.light.primary} />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: useLightSystemIcons
+          ? Palette.night.background
+          : Palette.light.background,
+      }}
+    >
+      <StatusBar
+        style={useLightSystemIcons ? 'light' : 'dark'}
+        animated
+      />
+
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: Palette.light.background,
+          },
+        }}
+      >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
-        <Stack.Screen name="pause" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+        <Stack.Screen
+          name="pause"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'fade',
+            contentStyle: {
+              backgroundColor: Palette.night.background,
+            },
+          }}
+        />
         <Stack.Screen name="grace-reset" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="examen" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+        <Stack.Screen
+          name="examen"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'fade',
+            contentStyle: {
+              backgroundColor: Palette.night.background,
+            },
+          }}
+        />
       </Stack>
 
       {isLocked && (
