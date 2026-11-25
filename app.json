@@ -8,7 +8,7 @@
     "scheme": "stillwater",
     "userInterfaceStyle": "light",
     "ios": {
-      "bundleIdentifier": "com.stillwater.companion",
+      "bundleIdentifier": "com.stillwater.recovery",
       "supportsTablet": false,
       "icon": "./assets/expo.icon",
       "infoPlist": {
@@ -20,7 +20,7 @@
       }
     },
     "android": {
-      "package": "com.stillwater.companion",
+      "package": "com.stillwater.recovery",
       "adaptiveIcon": {
         "backgroundColor": "#F4F5F9",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -59,7 +59,8 @@
       ],
       "expo-sqlite",
       "expo-secure-store",
-      "expo-audio"
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
