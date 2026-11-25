@@ -1,629 +1,628 @@
-import { useEffect, useRef, useState } from 'react';
+
 import {
-  KeyboardAvoidingView,
-  Platform,
+  newRecoverySessionId,
+  recordRecoveryEvent,
+} from '../db/recoveryEvents';
+
+import type {
+  RecoveryAction,
+} from '../content/recoveryEvents';
+
+import { useRef, useState } from 'react';
+import {
   Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { Palette, Radius, Sizes, Spacing, Typography } from '../theme/tokens';
-import { logGraceReset, shouldTriggerBingeBreaker } from '../db/queries';
+
 import {
-  ChoiceChip,
-  PrimaryButton,
-  SecondaryButton,
-  StepBar,
-  StillwaterMark,
-  useScreenInset,
-} from '../components/RoyalUI';
+  logGraceReset,
+  shouldTriggerBingeBreaker,
+} from '../db/queries';
 
-type ResetStep = 'loading' | 'binge' | 'stop' | 'debrief' | 'boundary' | 'lament' | 'closed';
+import {
+  V2Screen,
+  V2Text,
+  V2Card,
+  V2Button,
+  V2Artwork,
+  V2ActionRow,
+} from '../components/StillwaterUI';
 
-const DOOR_OPENERS = ['Phone in bed', 'Alone in the house', 'Heavy stress', 'Late-night insomnia', 'Conflict / hurt'];
-const NUMBING_NEEDS = ['Loneliness', 'Pressure', 'Boredom', 'Restlessness', 'Exhaustion'];
-const AFTERMATHS = ['Still empty', 'More drained', 'Foggy', 'Just tired'];
+import { StillwaterV2 } from '../theme/stillwaterV2';
+import { StillwaterMark } from '../components/RoyalUI';
 
-const BOUNDARY_PRESETS = [
-  'Charge my phone outside the bedroom tonight',
-  'Sign out of social feeds after 9 PM',
-  'Keep the door open while working at my desk',
-  'Send a normal text to a friend so I am not isolated',
-];
+type Scene =
+  | 'start'
+  | 'plan'
+  | 'reflection'
+  | 'finished';
+
+const mode = 'day' as const;
+const p = StillwaterV2.day;
+
+const BOUNDARIES = [
+  {
+    label: 'Charge my phone outside the bedroom tonight',
+    icon: 'smartphone',
+  },
+  {
+    label: 'Take a break from social media tonight',
+    icon: 'clock',
+  },
+  {
+    label: 'Spend some time away from my usual screen',
+    icon: 'sun',
+  },
+  {
+    label: 'Make time to connect with someone I trust',
+    icon: 'message-circle',
+  },
+] as const;
+
+const CONTEXTS = [
+  ['phone_in_bed', 'Phone in bed'],
+  ['alone_in_the_house', 'Being alone'],
+  ['heavy_stress', 'Stress'],
+  ['late-night_insomnia', 'Difficulty sleeping'],
+  ['conflict_/_hurt', 'Conflict or hurt'],
+] as const;
+
+const NEEDS = [
+  ['loneliness', 'Connection'],
+  ['pressure', 'Relief from pressure'],
+  ['boredom', 'Something to do'],
+  ['restlessness', 'Restlessness'],
+  ['exhaustion', 'Rest'],
+] as const;
 
 export default function GraceResetModal() {
   const router = useRouter();
-  const { inset, isNarrow } = useScreenInset();
-  const [step, setStep] = useState<ResetStep>('loading');
-  const [isBinge, setIsBinge] = useState(false);
 
-  const [doorOpener, setDoorOpener] = useState<string | undefined>();
-  const [numbingNeed, setNumbingNeed] = useState<string | undefined>();
-  const [aftermath, setAftermath] = useState<string | undefined>();
-  const [boundary, setBoundary] = useState<string>(BOUNDARY_PRESETS[0]);
-  const [customBoundary, setCustomBoundary] = useState('');
-  const [lamentText, setLamentText] = useState('');
+  const [recoverySessionId] =
+    useState(newRecoverySessionId);
 
-  const holdProgress = useSharedValue(0);
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const completedRef = useRef(false);
+  const [scene, setScene] = useState<Scene>('start');
 
-  useEffect(() => {
-    shouldTriggerBingeBreaker().then((triggered) => {
-      setIsBinge(triggered);
-      setStep(triggered ? 'binge' : 'stop');
-    });
-    return () => {
-      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-    };
-  }, []);
+  const [boundary, setBoundary] =
+    useState<string | undefined>();
 
-  const handleBingeAction = async (goToPause: boolean) => {
-    await logGraceReset({ wasBingeBreaker: true });
-    if (goToPause) {
-      router.replace('/pause');
-    } else {
+  const [customBoundary, setCustomBoundary] =
+    useState('');
+
+  const [context, setContext] =
+    useState<string | undefined>();
+
+  const [need, setNeed] =
+    useState<string | undefined>();
+
+  const [saving, setSaving] = useState(false);
+  const [showPrayer, setShowPrayer] = useState(false);
+  const [error, setError] = useState('');
+
+  const busy = useRef(false);
+  const recorded = useRef(false);
+
+  const leave = () => {
+    if (busy.current) return;
+
+    if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)');
     }
   };
 
-  const finalizeReset = async () => {
-    if (completedRef.current) return;
-    completedRef.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  const chosenBoundary =
+    customBoundary.trim() || boundary;
 
-    const chosenBoundary = customBoundary.trim() || boundary;
-    await logGraceReset({
-      wasBingeBreaker: isBinge,
-      doorOpenerTag: doorOpener?.toLowerCase().replace(/\s+/g, '_'),
-      numbingNeedTag: numbingNeed?.toLowerCase().replace(/\s+/g, '_'),
-      aftermathTag: aftermath?.toLowerCase().replace(/\s+/g, '_'),
-      boundaryLabel: chosenBoundary,
-      lamentText,
-    });
+  const save = async (
+    includeBoundary: boolean,
+    leaveImmediately = false
+  ) => {
+    if (busy.current || recorded.current) return;
 
-    setLamentText('');
-    setStep('closed');
-  };
+    busy.current = true;
+    setSaving(true);
+    setError('');
 
-  const handleHoldStart = () => {
-    if (completedRef.current) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    holdProgress.value = withTiming(1, { duration: 2000 });
-    holdTimerRef.current = setTimeout(() => {
-      finalizeReset();
-    }, 2000);
-  };
+    let success = false;
 
-  const handleHoldEnd = () => {
-    if (completedRef.current) return;
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
+    try {
+      const recentReturn =
+        await shouldTriggerBingeBreaker()
+          .catch(() => false);
+
+      await logGraceReset({
+        wasBingeBreaker: recentReturn,
+        doorOpenerTag: context,
+        numbingNeedTag: need,
+        boundaryLabel: includeBoundary
+          ? chosenBoundary
+          : undefined,
+      });
+
+      const presetKeys: RecoveryAction[] = [
+        'phone_outside',
+        'social_break',
+        'screen_break',
+        'connection',
+      ];
+
+      const selectedPreset = BOUNDARIES.findIndex(
+        item => item.label === chosenBoundary
+      );
+
+      const action: RecoveryAction =
+        !includeBoundary || !chosenBoundary
+          ? 'none'
+          : customBoundary.trim()
+            ? 'custom'
+            : presetKeys[selectedPreset] ?? 'custom';
+
+      // Only the action category is recorded.
+      // Custom boundary text remains in its original store.
+      await recordRecoveryEvent({
+        sessionId: recoverySessionId,
+        flow: 'return',
+        kind: 'return_saved',
+        contentId: 'start_again',
+        contentVersion: 1,
+        action,
+        result: 'saved',
+      });
+
+      recorded.current = true;
+      success = true;
+      setScene('finished');
+
+    } catch {
+      setError(
+        'Your return could not be recorded. You can retry or leave without saving.'
+      );
+    } finally {
+      busy.current = false;
+      setSaving(false);
     }
-    holdProgress.value = withTiming(0, { duration: 250 });
+
+    if (success && leaveImmediately) {
+      leave();
+    }
   };
 
-  const fillBarStyle = useAnimatedStyle(() => ({
-    width: `${holdProgress.value * 100}%`,
-  }));
+  const back = () => {
+    if (saving) return;
 
-  const lamentFadeStyle = useAnimatedStyle(() => ({
-    opacity: 1 - holdProgress.value * 0.9,
-  }));
-
-  const stepIndexMap: Partial<Record<ResetStep, number>> = {
-    stop: 0,
-    debrief: 1,
-    boundary: 2,
-    lament: 3,
+    if (scene === 'reflection') {
+      setScene('plan');
+    } else if (scene === 'plan') {
+      setScene('start');
+    } else {
+      leave();
+    }
   };
-  const currentStepIdx = stepIndexMap[step];
 
-  const renderChipRow = (
-    items: string[],
-    selected: string | undefined,
-    onSelect: (val: string) => void
-  ) => (
-    <View style={styles.pillWrap}>
-      {items.map((item) => {
-        const active = selected === item;
-        return (
-          <ChoiceChip
-            key={item}
-            label={item}
-            selected={active}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              onSelect(active ? '' : item);
-            }}
+  const footer = (
+    <View style={{ gap: 6 }}>
+
+      {scene === 'start' && (
+        <>
+          <V2Button
+            mode={mode}
+            label="Choose my next step"
+            icon="arrow-right"
+            disabled={saving}
+            onPress={() => setScene('plan')}
           />
-        );
-      })}
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label={saving
+              ? 'Recording...'
+              : 'Record my return and leave'}
+            disabled={saving}
+            onPress={() => void save(false, true)}
+          />
+        </>
+      )}
+
+      {scene === 'plan' && (
+        <>
+          <V2Button
+            mode={mode}
+            label={saving
+              ? 'Saving...'
+              : 'Save my next step'}
+            disabled={saving || !chosenBoundary}
+            onPress={() => void save(true)}
+          />
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Continue without a plan"
+            disabled={saving}
+            onPress={() => void save(false)}
+          />
+        </>
+      )}
+
+      {scene === 'reflection' && (
+        <V2Button
+          mode={mode}
+          label="Return to my plan"
+          onPress={() => setScene('plan')}
+        />
+      )}
+
+      {scene === 'finished' && (
+        <V2Button
+          mode={mode}
+          label="Return to today"
+          icon="arrow-right"
+          onPress={leave}
+        />
+      )}
+
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={[styles.topBar, { paddingHorizontal: inset }]}>
-        <Text style={styles.eyebrow}>
-          {step === 'binge' ? 'INTERRUPT THE SPIRAL' : 'RESET WITH GRACE'}
-        </Text>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          style={styles.closeBtn}
+    <V2Screen mode={mode} footer={footer}>
+
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+      }}>
+        {(scene === 'plan' ||
+          scene === 'reflection') && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            disabled={saving}
+            onPress={back}
+            style={{
+              minWidth: 48,
+              minHeight: 48,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Feather
+              name="arrow-left"
+              size={22}
+              color={p.text}
+            />
+          </Pressable>
+        )}
+
+        <V2Text
+          mode={mode}
+          muted
+          variant="label"
+          style={{ flex: 1 }}
         >
-          <Text style={styles.closeText}>Close</Text>
+          START AGAIN
+        </V2Text>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close Start Again"
+          disabled={saving}
+          onPress={leave}
+          style={{
+            minWidth: 48,
+            minHeight: 48,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Feather name="x" color={p.text} size={23} />
         </Pressable>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={[styles.container, { paddingHorizontal: inset }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {currentStepIdx !== undefined && <StepBar total={4} current={currentStepIdx} />}
+      {scene === 'start' && (
+        <>
+          <V2Artwork
+            mode={mode}
+            kind="threshold"
+            height={100}
+          />
 
-          {step === 'binge' && (
-            <View style={styles.block}>
-              <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-                The spiral is talking right now—don’t believe it.
-              </Text>
-              <View style={styles.supportNotice}>
-                <Text style={styles.supportNoticeText}>
-                  Right now your brain is whispering, “Today is already wrecked, so what’s one more time?” That is the oldest trap in the loop. You can step off the escalator at any floor—including this one.
-                </Text>
-              </View>
-              <Text style={styles.body}>
-                Skip the analysis for now. Step into another room and reset your body first.
-              </Text>
-              <PrimaryButton label="Take a 60-second breath" onPress={() => handleBingeAction(true)} />
-              <SecondaryButton label="Close & step away from the phone" onPress={() => handleBingeAction(false)} />
-              <Pressable
-                onPress={() => setStep('debrief')}
-                accessibilityRole="button"
-                style={styles.linkBtn}
-              >
-                <Text style={styles.linkText}>I’m calm—log what happened anyway</Text>
-              </Pressable>
+          <V2Text mode={mode} variant="display">
+            Begin again.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            What happened does not have to determine
+            what you do next.
+          </V2Text>
+
+          <V2Card mode={mode} tonal>
+            <V2Text
+              mode={mode}
+              muted
+              variant="label"
+            >
+              DO THIS FIRST
+            </V2Text>
+
+            <Feather
+              name="log-out"
+              size={30}
+              color={p.primary}
+            />
+
+            <V2Text mode={mode} variant="heading">
+              Change your surroundings.
+            </V2Text>
+
+            <V2Text mode={mode}>
+              Put your phone down and move somewhere
+              else, if possible.
+            </V2Text>
+          </V2Card>
+
+          <V2ActionRow
+            mode={mode}
+            icon="wind"
+            label="I need immediate support"
+            description="Open a guided moment"
+            onPress={() => {
+              if (!busy.current) {
+                router.push('/pause');
+              }
+            }}
+          />
+
+          <V2Text
+            mode={mode}
+            muted
+            variant="secondary"
+          >
+            You do not need to explain everything.
+            One useful action is enough for now.
+          </V2Text>
+        </>
+      )}
+
+      {scene === 'plan' && (
+        <>
+          <V2Text mode={mode} variant="display">
+            One small change.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Choose an optional practical plan for
+            the next 24 hours.
+          </V2Text>
+
+          {BOUNDARIES.map(item => (
+            <V2ActionRow
+              key={item.label}
+              mode={mode}
+              icon={item.icon}
+              label={item.label}
+              selected={
+                boundary === item.label &&
+                !customBoundary.trim()
+              }
+              onPress={() => {
+                if (busy.current) return;
+                setCustomBoundary('');
+                setBoundary(old =>
+                  old === item.label
+                    ? undefined
+                    : item.label
+                );
+              }}
+            />
+          ))}
+
+          <V2Card mode={mode}>
+            <V2Text mode={mode} variant="section">
+              Or make your own
+            </V2Text>
+
+            <TextInput
+              accessibilityLabel="Custom practical plan"
+              editable={!saving}
+              value={customBoundary}
+              onChangeText={value => {
+                setCustomBoundary(value);
+                setBoundary(undefined);
+              }}
+              placeholder="One practical change..."
+              placeholderTextColor={p.muted}
+              maxLength={180}
+              multiline
+              style={{
+                minHeight: 75,
+                borderWidth: 1,
+                borderColor: p.muted,
+                borderRadius: 12,
+                padding: 12,
+                fontSize: 16,
+                color: p.text,
+                backgroundColor: p.surface,
+                textAlignVertical: 'top',
+              }}
+            />
+
+            <V2Text
+              mode={mode}
+              muted
+              variant="secondary"
+            >
+              Your chosen plan is stored on this device.
+              Avoid including unnecessary sensitive details.
+            </V2Text>
+          </V2Card>
+
+          <V2ActionRow
+            mode={mode}
+            icon="book-open"
+            label="Reflect briefly"
+            description={
+              context || need
+                ? 'Optional reflection selected'
+                : 'Optional, no writing required'
+            }
+            onPress={() => {
+              if (!busy.current) {
+                setScene('reflection');
+              }
+            }}
+          />
+        </>
+      )}
+
+      {scene === 'reflection' && (
+        <>
+          <V2Text mode={mode} variant="display">
+            Notice, without judgement.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Skip any question you do not want to answer.
+            Your selections are saved only if you
+            choose to record your return.
+          </V2Text>
+
+          <V2Text mode={mode} variant="section">
+            What was happening?
+          </V2Text>
+
+          {CONTEXTS.map(([key, label]) => (
+            <V2ActionRow
+              key={key}
+              mode={mode}
+              icon="circle"
+              label={label}
+              selected={context === key}
+              onPress={() => setContext(old =>
+                old === key ? undefined : key
+              )}
+            />
+          ))}
+
+          <V2Text mode={mode} variant="section">
+            What might have helped?
+          </V2Text>
+
+          {NEEDS.map(([key, label]) => (
+            <V2ActionRow
+              key={key}
+              mode={mode}
+              icon="heart"
+              label={label}
+              selected={need === key}
+              onPress={() => setNeed(old =>
+                old === key ? undefined : key
+              )}
+            />
+          ))}
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Clear my answers"
+            onPress={() => {
+              setContext(undefined);
+              setNeed(undefined);
+            }}
+          />
+        </>
+      )}
+
+      {scene === 'finished' && (
+        <>
+          <View style={{
+            alignItems: 'center',
+            paddingVertical: 26,
+          }}>
+            <View style={{
+              width: 106,
+              height: 106,
+              borderRadius: 53,
+              borderWidth: 1,
+              borderColor: p.muted,
+              backgroundColor: p.secondary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Feather
+                name="check"
+                size={45}
+                color={p.primary}
+              />
             </View>
-          )}
+          </View>
 
-          {step === 'stop' && (
-            <View style={styles.block}>
-              <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-                Stop right here.
-              </Text>
-              <View style={styles.callout}>
+          <V2Text
+            mode={mode}
+            variant="display"
+            style={{ textAlign: 'center' }}
+          >
+            Your return is recorded.
+          </V2Text>
+
+          <V2Text
+            mode={mode}
+            muted
+            style={{ textAlign: 'center' }}
+          >
+            Take your next step when you are ready.
+          </V2Text>
+
+          <V2ActionRow
+            mode={mode}
+            icon="heart"
+            label="Take a moment to pray"
+            selected={showPrayer}
+            onPress={() => setShowPrayer(old => !old)}
+          />
+
+          {showPrayer && (
+            <V2Card mode={mode} tonal>
+              <View style={{ alignItems: 'center' }}>
                 <StillwaterMark
-                  size={30}
-                  color={Palette.light.scriptureGold}
-                />
-                <Text style={styles.calloutText}>
-                  Shame wants you to hide, call yourself a fraud, and slip again to numb the sting. Grace wants you awake, honest, and still in the room.
-                </Text>
-              </View>
-              <Text style={styles.body}>
-                One bad hour does not erase who you are or the quiet days you have already walked.
-              </Text>
-              <PrimaryButton
-                label="Take a breath & continue"
-                onPress={() => setStep('debrief')}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </View>
-          )}
-
-          {step === 'debrief' && (
-            <View style={styles.block}>
-              <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-                Let’s look at the room, not put you on trial.
-              </Text>
-
-              <Text style={styles.label}>What opened the door?</Text>
-              {renderChipRow(DOOR_OPENERS, doorOpener, setDoorOpener)}
-
-              <Text style={styles.label}>What were you hoping it would take away?</Text>
-              {renderChipRow(NUMBING_NEEDS, numbingNeed, setNumbingNeed)}
-
-              <Text style={styles.label}>How did it actually leave you feeling afterward?</Text>
-              {renderChipRow(AFTERMATHS, aftermath, setAftermath)}
-
-              <PrimaryButton
-                label="Next"
-                onPress={() => setStep('boundary')}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </View>
-          )}
-
-          {step === 'boundary' && (
-            <View style={styles.block}>
-              <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-                One small boundary for the next 24 hours.
-              </Text>
-              <Text style={styles.body}>
-                Willpower wears thin after dark; simple environment shifts carry you. Skip the sweeping vows.
-              </Text>
-
-              <View style={styles.boundaryList}>
-                {BOUNDARY_PRESETS.map((item) => {
-                  const selected = boundary === item && !customBoundary.trim();
-                  return (
-                    <Pressable
-                      key={item}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={[styles.boundaryCard, selected && styles.boundaryCardActive]}
-                      onPress={() => {
-                        setBoundary(item);
-                        setCustomBoundary('');
-                        Haptics.selectionAsync().catch(() => {});
-                      }}
-                    >
-                      <Text style={[
-                        styles.boundaryText,
-                        selected && styles.boundaryTextActive,
-                      ]}>
-                        {item}
-                      </Text>
-
-                      <View
-                        accessible={false}
-                        importantForAccessibility="no-hide-descendants"
-                        style={[
-                          styles.boundaryIndicator,
-                          selected &&
-                            styles.boundaryIndicatorActive,
-                        ]}
-                      >
-                        {selected && (
-                          <Feather
-                            name="check"
-                            size={15}
-                            color={Palette.light.onPrimary}
-                          />
-                        )}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <TextInput
-                style={styles.input}
-                placeholder="Or write your own small shift..."
-                placeholderTextColor={Palette.light.textSecondary}
-                accessibilityLabel="Custom boundary"
-                selectionColor={Palette.light.primary}
-                keyboardAppearance="light"
-                value={customBoundary}
-                onChangeText={setCustomBoundary}
-              />
-
-              <PrimaryButton
-                label="Commit for 24 hours"
-                onPress={() => setStep('lament')}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </View>
-          )}
-
-          {step === 'lament' && (
-            <View style={styles.block}>
-              <View style={styles.lamentMark}>
-                <StillwaterMark
-                  size={34}
-                  color={Palette.light.scripture}
+                  size={36}
+                  color={p.primary}
                 />
               </View>
-              <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-                Say one unfiltered line to God.
-              </Text>
-              <Text style={styles.body}>
-                No polite church language. Anger, exhaustion, and frustration belong here too. When you hold below, these words dissolve—nothing is kept.
-              </Text>
 
-              <Animated.View style={lamentFadeStyle}>
-                <TextInput
-                  style={[styles.input, styles.lamentBox]}
-                  placeholder="Honestly, I’m just tired of..."
-                  placeholderTextColor={Palette.light.textSecondary}
-                  accessibilityLabel="Your lament"
-                  selectionColor={Palette.light.scripture}
-                  keyboardAppearance="light"
-                  multiline
-                  value={lamentText}
-                  onChangeText={setLamentText}
-                />
-              </Animated.View>
-
-              <Pressable
-                onPressIn={handleHoldStart}
-                onPressOut={handleHoldEnd}
-                accessibilityRole="button"
-                accessibilityLabel="Press and hold for two seconds to lay this down"
-                style={styles.holdBtn}
+              <V2Text
+                mode={mode}
+                variant="section"
+                style={{ textAlign: 'center' }}
               >
-                <Animated.View style={[styles.holdFill, fillBarStyle]} />
-                <View style={styles.holdContent}>
-                  <Feather
-                    name="unlock"
-                    size={19}
-                    color={Palette.light.scripture}
-                  />
-                  <Text style={styles.holdBtnText}>
-                    Press & hold (2s) to lay this down
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
-          )}
+                Lord, give me the courage to begin again.
+              </V2Text>
 
-          {step === 'closed' && (
-            <View style={[styles.block, styles.closedStage]}>
-              <View
-                style={styles.closedHalo}
-                accessible={false}
-                importantForAccessibility="no-hide-descendants"
+              <V2Text
+                mode={mode}
+                muted
+                variant="secondary"
+                style={{ textAlign: 'center' }}
               >
-                <View style={styles.closedHaloInner}>
-                  <Feather
-                    name="check-circle"
-                    size={44}
-                    color={Palette.light.success}
-                  />
-                </View>
-              </View>
-
-              <Text style={[
-                styles.eyebrow,
-                styles.closedEyebrow,
-              ]}>
-                LEDGER CLOSED
-              </Text>
-
-              <Text style={[
-                Typography.display,
-                isNarrow && Typography.displayNarrow,
-                styles.title,
-                styles.closedTitle,
-              ]}>
-                Mercy does not run out at midnight.
-              </Text>
-
-              <Text style={[styles.body, styles.closedBody]}>
-                Today has been marked as an honest return, not a failure. Close the app, drink some water, and go live the rest of your day in the light.
-              </Text>
-              <PrimaryButton
-                label="Return to Today"
-                onPress={() => router.back()}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </View>
+                Stay briefly, or leave whenever you wish.
+              </V2Text>
+            </V2Card>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </>
+      )}
+
+      {error !== '' && (
+        <V2Card mode={mode}>
+          <V2Text mode={mode}>{error}</V2Text>
+        </V2Card>
+      )}
+
+    </V2Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.light.background },
-  topBar: {
-    minHeight: 54,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eyebrow: { ...Typography.label, color: Palette.light.textSecondary },
-  closeBtn: { minHeight: Sizes.minTouchTarget, justifyContent: 'center' },
-  closeText: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '600',
-    color: Palette.light.primary,
-  },
-  container: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.lg },
-  block: {
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    gap: Spacing.lg,
-  },
-  title: { color: Palette.light.text },
-  body: { ...Typography.body, color: Palette.light.textSecondary },
-  callout: {
-    backgroundColor: Palette.light.scripture,
-    borderRadius: Radius.feature,
-    padding: Spacing.xl,
-    gap: Spacing.lg,
-  },
-
-  calloutText: {
-    ...Typography.body,
-    fontSize: 17,
-    lineHeight: 26,
-    color: Palette.light.scriptureText,
-  },
-  supportNotice: {
-    backgroundColor: Palette.light.supportBackground,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.supportBorder,
-    borderRadius: Radius.standard,
-    padding: Spacing.lg,
-  },
-  supportNoticeText: {
-    ...Typography.body,
-    fontSize: 15,
-    color: Palette.light.support,
-  },
-  label: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Palette.light.text,
-    marginTop: Spacing.xs,
-  },
-  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  boundaryList: { gap: Spacing.sm },
-  boundaryCard: {
-    minHeight: 64,
-    backgroundColor: Palette.light.surface,
-    borderWidth: 2,
-    borderColor: Palette.light.border,
-    padding: Spacing.lg,
-    borderRadius: Radius.standard,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-  },
-
-  boundaryIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Palette.light.textSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-
-  boundaryIndicatorActive: {
-    backgroundColor: Palette.light.primary,
-    borderColor: Palette.light.primary,
-  },
-  boundaryCardActive: {
-    backgroundColor: Palette.light.primaryTonal,
-    borderColor: Palette.light.primary,
-    borderWidth: 2,
-  },
-  boundaryText: {
-    flex: 1,
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '500',
-    color: Palette.light.text,
-  },
-  boundaryTextActive: {
-    color: Palette.light.primaryPressed,
-    fontWeight: '600',
-  },
-  input: {
-    minHeight: Sizes.primaryButtonHeight,
-    backgroundColor: Palette.light.input,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    borderRadius: Radius.standard,
-    padding: Spacing.md,
-    ...Typography.body,
-    color: Palette.light.text,
-  },
-  lamentMark: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: Spacing.sm,
-  },
-
-  lamentBox: {
-    minHeight: 180,
-    padding: Spacing.lg,
-    textAlignVertical: 'top',
-    borderRadius: Radius.group,
-  },
-  linkBtn: { minHeight: Sizes.minTouchTarget, justifyContent: 'center', alignItems: 'center' },
-  linkText: { ...Typography.secondary, color: Palette.light.textSecondary },
-  holdBtn: {
-    position: 'relative',
-    overflow: 'hidden',
-    minHeight: 60,
-    paddingVertical: Spacing.md,
-    backgroundColor: Palette.light.surface,
-    borderWidth: 2,
-    borderColor: Palette.light.scripture,
-    borderRadius: Radius.standard,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  holdFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: Palette.light.scriptureSecondary,
-  },
-  holdContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    width: '100%',
-    zIndex: 1,
-  },
-
-  holdBtnText: {
-    ...Typography.button,
-    flexShrink: 1,
-    textAlign: 'center',
-    color: Palette.light.scripture,
-  },
-
-  closedStage: {
-    alignItems: 'center',
-    gap: Spacing.xl,
-  },
-
-  closedHalo: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 1,
-    borderColor: 'rgba(25, 117, 77, 0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  closedHaloInner: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    backgroundColor: 'rgba(25, 117, 77, 0.09)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  closedEyebrow: {
-    color: Palette.light.success,
-    letterSpacing: 1.2,
-    textAlign: 'center',
-  },
-
-  closedTitle: {
-    textAlign: 'center',
-  },
-
-  closedBody: {
-    textAlign: 'center',
-    maxWidth: 380,
-  },
-});

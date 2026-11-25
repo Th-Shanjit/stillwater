@@ -11,7 +11,6 @@ export const PLUS_ENTITLEMENT_ID = 'plus';
 
 const DEV_PLUS_KEY = 'dev_stillwater_plus_preview';
 const SCHOLARSHIP_UNTIL_KEY = 'grace_scholarship_until';
-const CACHED_RC_PLUS_KEY = 'cached_rc_plus_active';
 
 let configured = false;
 
@@ -89,13 +88,7 @@ export async function initEntitlements(): Promise<boolean> {
     }
     configured = true;
 
-    Purchases.addCustomerInfoUpdateListener((info) => {
-      const active = hasEntitlementInInfo(info);
-      setFlag(CACHED_RC_PLUS_KEY, active ? '1' : '0').catch(() => {});
-    });
-
-    const info = await Purchases.getCustomerInfo();
-    await setFlag(CACHED_RC_PLUS_KEY, hasEntitlementInInfo(info) ? '1' : '0');
+    await Purchases.getCustomerInfo();
     return true;
   } catch {
     return false;
@@ -116,7 +109,7 @@ export async function activateGraceScholarship(): Promise<void> {
 }
 
 /**
- * Single source of truth for Stillwater Plus access (works 100% offline via cached flag).
+ * Use RevenueCat CustomerInfo and its native caching for purchased access.
  */
 export async function hasStillwaterPlus(): Promise<boolean> {
   if (await hasActiveGraceScholarship()) return true;
@@ -130,18 +123,17 @@ export async function hasStillwaterPlus(): Promise<boolean> {
     try {
       const info = await Purchases.getCustomerInfo();
       const active = hasEntitlementInInfo(info);
-      await setFlag(CACHED_RC_PLUS_KEY, active ? '1' : '0');
       return active;
     } catch {
-      // Offline fallback to last verified local status
+      // RevenueCat manages its own offline entitlement cache.
     }
   }
 
-  const cached = await getFlag(CACHED_RC_PLUS_KEY);
-  return cached === '1';
+  return false;
 }
 
 export async function setDevPlusPreview(enabled: boolean): Promise<void> {
+  if (!__DEV__) return;
   await setFlag(DEV_PLUS_KEY, enabled ? '1' : '0');
 }
 
@@ -183,7 +175,6 @@ export async function purchasePlan(
   try {
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     const active = hasEntitlementInInfo(customerInfo);
-    await setFlag(CACHED_RC_PLUS_KEY, active ? '1' : '0');
     return { success: active };
   } catch (err: unknown) {
     const maybeErr = err as { userCancelled?: boolean; message?: string };
@@ -205,19 +196,15 @@ export async function restoreStillwaterPurchases(): Promise<{
     await initEntitlements();
   }
   if (!configured || isRunningInExpoGo()) {
-    const scholarship = await hasActiveGraceScholarship();
     return {
-      restored: scholarship,
-      error: scholarship
-        ? undefined
-        : 'Store restore requires an App Store or Google Play development build.',
+      restored: false,
+      error: 'Store restore requires a supported store build and configuration.',
     };
   }
 
   try {
     const info = await Purchases.restorePurchases();
     const active = hasEntitlementInInfo(info);
-    await setFlag(CACHED_RC_PLUS_KEY, active ? '1' : '0');
     return { restored: active };
   } catch (err: unknown) {
     const maybeErr = err as { message?: string };

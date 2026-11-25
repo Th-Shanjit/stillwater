@@ -15,11 +15,9 @@ import {
   activateGraceScholarship,
   AvailablePlans,
   getAvailablePlans,
-  isRunningInExpoGo,
   openNativeOfferCodeRedemption,
   purchasePlan,
   restoreStillwaterPurchases,
-  setDevPlusPreview,
 } from '../db/entitlements';
 import { PrimaryButton, SecondaryButton, StillwaterMark } from './RoyalUI';
 
@@ -35,14 +33,13 @@ interface PlusOfferViewProps {
 
 const BENEFITS = [
   'Full 30-Day Root-Cause Recovery Path (Weeks 1–4)',
-  'All Eyes-Closed Midnight Rescue audio companions',
-  'Zero-Spyware Night Guard & 90-Day Weather Map',
+  'Additional guided rescue practices',
 ];
 
 export function PlusOfferView({
-  eyebrow = 'STILLWATER PLUS · 14 DAYS FREE',
+  eyebrow = 'STILLWATER PLUS',
   headline = 'Go deeper in the daylight.',
-  freeActionLabel = 'Continue with Free Sanctuary',
+  freeActionLabel = 'Continue free',
   onUnlocked,
   onContinueFree,
 }: PlusOfferViewProps) {
@@ -60,13 +57,19 @@ export function PlusOfferView({
 
   useEffect(() => {
     getAvailablePlans()
-      .then(setPlans)
+      .then((available) => {
+        setPlans(available);
+        if (available.annual) setSelected('annual');
+        else if (available.monthly) setSelected('monthly');
+        else if (available.lifetime) setSelected('lifetime');
+      })
+      .catch(() => setFeedback('Store plans are unavailable right now.'))
       .finally(() => setLoadingPlans(false));
   }, []);
 
-  const annualPrice = plans.annual?.product.priceString ?? '$49.99';
-  const monthlyPrice = plans.monthly?.product.priceString ?? '$6.99';
-  const lifetimePrice = plans.lifetime?.product.priceString ?? '$119.99';
+  const annualPrice = plans.annual?.product.priceString ?? null;
+  const monthlyPrice = plans.monthly?.product.priceString ?? null;
+  const lifetimePrice = plans.lifetime?.product.priceString ?? null;
 
   const activePackage: PurchasesPackage | null =
     selected === 'annual'
@@ -75,12 +78,13 @@ export function PlusOfferView({
         ? plans.monthly
         : plans.lifetime;
 
-  const ctaLabel =
-    selected === 'annual'
-      ? `Start 14-day free trial · ${annualPrice}/yr`
+  const ctaLabel = !activePackage
+    ? 'Store plan unavailable'
+    : selected === 'annual'
+      ? 'Continue annually'
       : selected === 'monthly'
-        ? `Continue monthly · ${monthlyPrice}/mo`
-        : `Unlock lifetime · ${lifetimePrice}`;
+        ? 'Continue monthly'
+        : 'Unlock lifetime';
 
   const handleSubscribe = async () => {
     if (busy) return;
@@ -89,12 +93,6 @@ export function PlusOfferView({
 
     try {
       if (!activePackage) {
-        if (__DEV__ || isRunningInExpoGo()) {
-          await setDevPlusPreview(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          onUnlocked();
-          return;
-        }
         setFeedback('Store plans are still syncing. Please try again in a moment.');
         return;
       }
@@ -103,8 +101,8 @@ export function PlusOfferView({
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         onUnlocked();
-      } else if (!result.cancelled && result.error) {
-        setFeedback(result.error);
+      } else if (!result.cancelled) {
+        setFeedback(result.error ?? 'Plus access could not be verified. Try restoring purchases.');
       }
     } finally {
       setBusy(false);
@@ -156,12 +154,12 @@ export function PlusOfferView({
         <Text style={styles.eyebrow}>THE GRACE PROMISE</Text>
         <Text style={styles.headline}>No one turned away for money.</Text>
         <Text style={styles.body}>
-          If $49.99/year is genuinely out of reach right now—whether you are a student, between jobs, or carrying a heavy season—activate a full 1-year Grace Scholarship right here. No forms, no tracking, no questions asked.
+          If a paid membership is out of reach right now—whether you are a student, between jobs, or carrying a heavy season—activate a full 1-year Grace Scholarship right here. No forms, no tracking, no questions asked.
         </Text>
 
         <View style={styles.callout}>
           <Text style={styles.calloutText}>
-            Your scholarship unlocks all 30 recovery modules and Midnight Rescue audio on this device for 12 months.
+            Your scholarship unlocks the available Plus modules and guided practices on this device for 12 months.
           </Text>
         </View>
 
@@ -188,7 +186,7 @@ export function PlusOfferView({
 
       <Text style={styles.headline}>{headline}</Text>
       <Text style={styles.body}>
-        Crisis tools—The Pause, Grace Reset, Evening Examen, and Week 1—stay free forever. Stillwater Plus keeps the app 100% private, local-first, and ad-free.
+        The Pause, Grace Reset, Evening Examen and Week 1 are free. Plus unlocks additional practices. Personal privacy is not a paid feature.
       </Text>
 
       {/* Benefits Card */}
@@ -223,13 +221,10 @@ export function PlusOfferView({
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.planTitleRow}>
                 <Text style={styles.planTitle}>Annual</Text>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>14 days free</Text>
-                </View>
               </View>
-              <Text style={styles.planSub}>Best value · Cancel anytime before Day 14</Text>
+              <Text style={styles.planSub}>Annual subscription</Text>
             </View>
-            <Text style={styles.planPrice}>{annualPrice}/yr</Text>
+            <Text style={styles.planPrice}>{annualPrice ? annualPrice + '/yr' : 'Unavailable'}</Text>
           </Pressable>
 
           <Pressable
@@ -245,7 +240,7 @@ export function PlusOfferView({
               <Text style={styles.planTitle}>Monthly</Text>
               <Text style={styles.planSub}>Flexible month-to-month support</Text>
             </View>
-            <Text style={styles.planPrice}>{monthlyPrice}/mo</Text>
+            <Text style={styles.planPrice}>{monthlyPrice ? monthlyPrice + '/mo' : 'Unavailable'}</Text>
           </Pressable>
 
           <Pressable
@@ -259,9 +254,9 @@ export function PlusOfferView({
           >
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.planTitle}>Lifetime</Text>
-              <Text style={styles.planSub}>Pay once, keep Stillwater Plus forever</Text>
+              <Text style={styles.planSub}>One-time purchase of core Plus access</Text>
             </View>
-            <Text style={styles.planPrice}>{lifetimePrice}</Text>
+            <Text style={styles.planPrice}>{lifetimePrice ?? 'Unavailable'}</Text>
           </Pressable>
         </View>
       )}
@@ -276,7 +271,7 @@ export function PlusOfferView({
         <PrimaryButton
           label={busy ? 'Connecting to store...' : ctaLabel}
           onPress={handleSubscribe}
-          disabled={busy}
+          disabled={busy || loadingPlans || !activePackage}
         />
         <SecondaryButton
           label={freeActionLabel}
@@ -289,7 +284,7 @@ export function PlusOfferView({
       <Text style={styles.legalNote}>
         {selected === 'lifetime'
           ? 'One-time purchase billed through your App Store or Google Play account.'
-          : 'Subscriptions renew automatically unless canceled at least 24 hours before the end of the trial or billing period in device settings.'}
+          : 'Subscriptions renew automatically unless canceled. Review the final price, renewal terms and any eligible introductory offer in the store before confirming.'}
       </Text>
 
       <View style={styles.footerLinks}>

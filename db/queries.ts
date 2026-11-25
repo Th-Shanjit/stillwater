@@ -1,8 +1,32 @@
+import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { getDb } from './schema';
 
 export type ToneTrack = 'scripture' | 'liturgical';
-export type DayStatus = 'clarity' | 'returned' | 'unlogged';
+export type DayStatus = 'practice' | 'returned' | 'unlogged';
+
+export function classifyRecordedDay(row?: {
+  day_status?: string;
+  morning_completed?: number;
+  examen_completed?: number;
+}) {
+  const morningCompleted = Boolean(row?.morning_completed);
+  const examenCompleted = Boolean(row?.examen_completed);
+  const practiced = morningCompleted || examenCompleted;
+  const returned = row?.day_status === 'returned';
+
+  const status: DayStatus =
+    returned ? 'returned' :
+    practiced ? 'practice' : 'unlogged';
+
+  return {
+    status,
+    morningCompleted,
+    examenCompleted,
+    practiced,
+    recorded: practiced || returned,
+  };
+}
 
 export interface UserPreferences {
   tone_track: ToneTrack;
@@ -31,7 +55,6 @@ export interface WeatherMapInsights {
   totalEventsLast30d: number;
   peakWindowLabel: string | null;
   topEmotionTag: string | null;
-  examenProtectionRate: number | null;
 }
 
 export interface BoundaryItem {
@@ -228,7 +251,7 @@ export async function logPauseEvent(params: {
   emotionTag?: string;
   breathCyclesCompleted: number;
   usedAudio?: boolean;
-  outcome?: 'steady' | 'exited_early';
+  outcome?: 'steady' | 'exited_early' | 'ready_to_step_away';
 }): Promise<void> {
   const db = await getDb();
   const now = new Date();
@@ -243,7 +266,7 @@ export async function logPauseEvent(params: {
       params.emotionTag ?? null,
       params.breathCyclesCompleted,
       params.usedAudio ? 1 : 0,
-      params.outcome ?? 'steady',
+      params.outcome ?? 'exited_early',
     ]
   );
 }
@@ -257,48 +280,94 @@ export async function logGraceReset(params: {
   lamentText?: string;
 }): Promise<void> {
   const db = await getDb();
-  const prefs = await getPreferences();
+
   const now = new Date();
   const today = getLocalDateString(now);
   const nowIso = now.toISOString();
 
-  let boundaryId: string | null = null;
-  if (params.boundaryLabel?.trim()) {
-    boundaryId = Crypto.randomUUID();
-    const expiresIso = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-    await db.runAsync(
-      `INSERT INTO boundaries (id, label, source, created_at, expires_at)
-       VALUES (?, ?, 'grace_reset', ?, ?);`,
-      [boundaryId, params.boundaryLabel.trim(), nowIso, expiresIso]
+  const write = async (conn: typeof db) => {
+    let boundaryId: string | null = null;
+
+    const label = params.boundaryLabel?.trim();
+
+    if (label) {
+      // Reuse an identical active boundary rather than
+      // creating unnecessary duplicate plans.
+      const existing =
+        await conn.getFirstAsync<{ id: string }>(
+          `SELECT id FROM boundaries
+           WHERE label = ?
+             AND kept IS NULL
+             AND expires_at >= ?
+           ORDER BY created_at DESC LIMIT 1;`,
+          [label, nowIso]
+        );
+
+      if (existing) {
+        boundaryId = existing.id;
+      } else {
+        boundaryId = Crypto.randomUUID();
+
+        const expiresIso = new Date(
+          now.getTime() + 24 * 60 * 60 * 1000
+        ).toISOString();
+
+        await conn.runAsync(
+          `INSERT INTO boundaries
+            (id, label, source, created_at, expires_at)
+           VALUES (?, ?, 'grace_reset', ?, ?);`,
+          [
+            boundaryId,
+            label,
+            nowIso,
+            expiresIso,
+          ]
+        );
+      }
+    }
+
+    await conn.runAsync(
+      `INSERT INTO grace_resets
+        (id, date, created_at, hour_of_day,
+         was_binge_breaker, door_opener_tag,
+         numbing_need_tag, aftermath_tag,
+         boundary_id, lament_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      [
+        Crypto.randomUUID(),
+        today,
+        nowIso,
+        now.getHours(),
+        params.wasBingeBreaker ? 1 : 0,
+        params.doorOpenerTag ?? null,
+        params.numbingNeedTag ?? null,
+        params.aftermathTag ?? null,
+        boundaryId,
+        null,
+      ]
     );
+
+    await conn.runAsync(
+      `INSERT INTO daily_logs
+        (date, day_status, updated_at)
+       VALUES (?, 'returned', ?)
+       ON CONFLICT(date) DO UPDATE SET
+         day_status = 'returned',
+         updated_at = excluded.updated_at;`,
+      [today, nowIso]
+    );
+  };
+
+  if (Platform.OS === 'web') {
+    // Exclusive transactions are unavailable on web.
+    await db.withTransactionAsync(async () => {
+      await write(db);
+    });
+  } else {
+    await db.withExclusiveTransactionAsync(async txn => {
+      await write(txn);
+    });
   }
-
-  const safeLament = prefs.save_laments ? (params.lamentText?.trim() || null) : null;
-
-  await db.runAsync(
-    `INSERT INTO grace_resets
-      (id, date, created_at, hour_of_day, was_binge_breaker, door_opener_tag, numbing_need_tag, aftermath_tag, boundary_id, lament_text)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [
-      Crypto.randomUUID(),
-      today,
-      nowIso,
-      now.getHours(),
-      params.wasBingeBreaker ? 1 : 0,
-      params.doorOpenerTag ?? null,
-      params.numbingNeedTag ?? null,
-      params.aftermathTag ?? null,
-      boundaryId,
-      safeLament,
-    ]
-  );
-
-  await db.runAsync(
-    `INSERT INTO daily_logs (date, day_status, updated_at)
-     VALUES (?, 'returned', ?)
-     ON CONFLICT(date) DO UPDATE SET day_status = 'returned', updated_at = excluded.updated_at;`,
-    [today, nowIso]
-  );
 }
 
 export async function completeMorningAnchor(anchorId: string, boundaryLabel?: string): Promise<void> {
@@ -328,6 +397,50 @@ export async function completeMorningAnchor(anchorId: string, boundaryLabel?: st
   }
 }
 
+/**
+ * Record an explicitly finished evening practice.
+ * Optional selections do not erase earlier entries
+ * when the user chooses to skip reflection.
+ */
+export async function recordEveningWindDown(
+  date: string,
+  drainedTags?: string[]
+): Promise<void> {
+  const db = await getDb();
+  const nowIso = new Date().toISOString();
+
+  const tags =
+    drainedTags === undefined
+      ? undefined
+      : [...new Set(drainedTags)];
+
+  await db.runAsync(
+    `INSERT INTO daily_logs
+      (date, examen_completed, examen_drained_tags,
+       day_status, updated_at)
+     VALUES (?, 1, ?, 'clarity', ?)
+     ON CONFLICT(date) DO UPDATE SET
+       examen_completed = 1,
+       examen_drained_tags = CASE
+         WHEN ? = 1
+         THEN excluded.examen_drained_tags
+         ELSE daily_logs.examen_drained_tags
+       END,
+       day_status = CASE
+         WHEN daily_logs.day_status = 'returned'
+         THEN 'returned'
+         ELSE 'clarity'
+       END,
+       updated_at = excluded.updated_at;`,
+    [
+      date,
+      JSON.stringify(tags ?? []),
+      nowIso,
+      tags === undefined ? 0 : 1,
+    ]
+  );
+}
+
 export async function completeEveningExamen(gratitude: string, drainedTags: string[]): Promise<void> {
   const db = await getDb();
   const now = new Date();
@@ -349,14 +462,10 @@ export async function completeEveningExamen(gratitude: string, drainedTags: stri
 
 export async function getClarityGrid(days: number = 30): Promise<{
   grid: ClarityDay[];
-  clarityCount: number;
+  practiceCount: number;
   activeDays: number;
 }> {
   const db = await getDb();
-  const prefs = await getPreferences();
-  const onboardedDate = prefs.onboarded_at
-    ? getLocalDateString(new Date(prefs.onboarded_at))
-    : getLocalDateString();
 
   const dates: string[] = [];
   const today = new Date();
@@ -372,32 +481,25 @@ export async function getClarityGrid(days: number = 30): Promise<{
   );
   const logMap = new Map(rows.map((r) => [r.date, r]));
 
-  let clarityCount = 0;
+  let practiceCount = 0;
   let activeDays = 0;
 
   const grid: ClarityDay[] = dates.map((date) => {
     const row = logMap.get(date);
-    const isAfterOnboarding = date >= onboardedDate;
+    const day = classifyRecordedDay(row);
 
-    let status: DayStatus = 'unlogged';
-    if (row?.day_status === 'returned') {
-      status = 'returned';
-      activeDays += 1;
-    } else if (row?.day_status === 'clarity' || isAfterOnboarding) {
-      status = 'clarity';
-      clarityCount += 1;
-      activeDays += 1;
-    }
+    if (day.practiced) practiceCount += 1;
+    if (day.recorded) activeDays += 1;
 
     return {
       date,
-      status,
-      morningCompleted: Boolean(row?.morning_completed),
-      examenCompleted: Boolean(row?.examen_completed),
+      status: day.status,
+      morningCompleted: day.morningCompleted,
+      examenCompleted: day.examenCompleted,
     };
   });
 
-  return { grid, clarityCount, activeDays };
+  return { grid, practiceCount, activeDays };
 }
 
 export async function getWeatherMapInsights(): Promise<WeatherMapInsights> {
@@ -417,7 +519,6 @@ export async function getWeatherMapInsights(): Promise<WeatherMapInsights> {
       totalEventsLast30d: events.length,
       peakWindowLabel: null,
       topEmotionTag: null,
-      examenProtectionRate: null,
     };
   }
 
@@ -438,23 +539,10 @@ export async function getWeatherMapInsights(): Promise<WeatherMapInsights> {
   const topEmotionTag =
     Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
-  const examenStats = await db.getFirstAsync<{ total: number; clear_days: number }>(
-    `SELECT COUNT(*) as total,
-            SUM(CASE WHEN day_status != 'returned' THEN 1 ELSE 0 END) as clear_days
-     FROM daily_logs
-     WHERE examen_completed = 1 AND date >= date('now', '-30 days');`
-  );
-
-  const examenProtectionRate =
-    examenStats && examenStats.total >= 3
-      ? Math.round((examenStats.clear_days / examenStats.total) * 100)
-      : null;
-
   return {
     hasEnoughData: true,
     totalEventsLast30d: events.length,
     peakWindowLabel: bucketLabels[peakIdx],
     topEmotionTag,
-    examenProtectionRate,
   };
 }

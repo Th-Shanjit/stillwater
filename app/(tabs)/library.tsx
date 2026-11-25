@@ -140,9 +140,9 @@ export default function LibraryScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headingBlock}>
-          <Text style={styles.eyebrow}>Formation & audio sanctuary</Text>
+          <Text style={styles.eyebrow}>Guided practices & recovery</Text>
           <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-            Library
+            Journey
           </Text>
         </View>
 
@@ -179,7 +179,7 @@ export default function LibraryScreen() {
 
         {/* 1. Eyes-Closed Midnight Rescue Audio */}
         <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>Eyes-closed midnight rescue</Text>
+          <Text style={styles.sectionTitle}>Guided rescue practices</Text>
           <View style={styles.groupedCard}>
             {AUDIO_TRACKS.map((track, idx) => {
               const locked = track.tier === 'plus' && !isPlus;
@@ -192,7 +192,7 @@ export default function LibraryScreen() {
                     style={({ pressed }) => [styles.rowBtn, pressed && { opacity: 0.72 }]}
                   >
                     <Feather
-                      name={locked ? 'lock' : 'headphones'}
+                      name={locked ? 'lock' : track.audioUri ? 'headphones' : 'book-open'}
                       size={Sizes.icon}
                       color={locked ? Palette.light.textSecondary : Palette.light.scripture}
                     />
@@ -205,7 +205,7 @@ export default function LibraryScreen() {
                           </View>
                         )}
                       </View>
-                      <Text style={styles.rowSub}>{track.subtitle}</Text>
+                      <Text style={styles.rowSub}>{track.subtitle}{track.audioUri ? ' · Audio' : ' · Guided text'}</Text>
                     </View>
                     <Feather name="chevron-right" size={18} color={Palette.light.textSecondary} />
                   </Pressable>
@@ -476,12 +476,19 @@ export default function LibraryScreen() {
                 <Text style={styles.nightCloseText}>Close</Text>
               </Pressable>
             </View>
-            <View style={{ flex: 1, paddingHorizontal: inset, paddingBottom: Spacing.xl }}>
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: inset,
+                paddingBottom: Spacing.xl,
+              }}
+            >
               <AudioRescuePlayer
                 track={activeAudio}
                 onComplete={() => setActiveAudio(null)}
               />
-            </View>
+            </ScrollView>
           </SafeAreaView>
         )}
       </Modal>

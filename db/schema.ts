@@ -1,3 +1,4 @@
+import { RECOVERY_EVENT_SCHEMA } from '../content/recoveryEvents';
 import * as SQLite from 'expo-sqlite';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
@@ -106,6 +107,8 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_grace_resets_date ON grace_resets(date);
     CREATE INDEX IF NOT EXISTS idx_pause_events_created ON pause_events(created_at);
   `);
+
+  await db.execAsync(RECOVERY_EVENT_SCHEMA);
 
   await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
   await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN last_opened_at TEXT;`);

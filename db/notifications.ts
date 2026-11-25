@@ -28,8 +28,43 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return status === 'granted';
 }
 
+const DAILY_REMINDER_BODIES = new Set([
+  'Your morning anchor is ready.',
+  'Time to set the day down.',
+]);
+
+async function getDailyReminderRequests() {
+  const scheduled =
+    await Notifications.getAllScheduledNotificationsAsync();
+
+  return scheduled.filter(request =>
+    request.content.title === 'Stillwater' &&
+    DAILY_REMINDER_BODIES.has(request.content.body ?? '')
+  );
+}
+
+export async function hasDailyRhythms(): Promise<boolean> {
+  const permission = await Notifications.getPermissionsAsync();
+
+  if (permission.status !== 'granted') return false;
+
+  const scheduled = await getDailyReminderRequests();
+
+  return scheduled.length > 0;
+}
+
+export async function cancelDailyRhythms(): Promise<void> {
+  const scheduled = await getDailyReminderRequests();
+
+  await Promise.all(scheduled.map(request =>
+    Notifications.cancelScheduledNotificationAsync(
+      request.identifier
+    )
+  ));
+}
+
 export async function scheduleDailyRhythms(morningHHMM: string, bedtimeHHMM: string): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  await cancelDailyRhythms();
   const morning = parseHHMM(morningHHMM, 0);
   const examen = parseHHMM(bedtimeHHMM, -30);
 

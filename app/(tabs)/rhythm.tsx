@@ -1,3 +1,4 @@
+import { StillwaterActivity } from '../../components/StillwaterActivity';
 import { useCallback, useState } from 'react';
 import {
   Alert,
@@ -12,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Feather } from '@expo/vector-icons';
@@ -32,7 +33,7 @@ import {
   UserPreferences,
   WeatherMapInsights,
 } from '../../db/queries';
-import { requestNotificationPermission, scheduleDailyRhythms } from '../../db/notifications';
+import { requestNotificationPermission, scheduleDailyRhythms, hasDailyRhythms, cancelDailyRhythms } from '../../db/notifications';
 import {
   AppHeader,
   ChoiceChip,
@@ -50,6 +51,9 @@ const BEDTIMES = [
 ];
 
 export default function RhythmScreen() {
+  const router = useRouter();
+  const [remindersOn, setRemindersOn] = useState(false);
+  const [reminderBusy, setReminderBusy] = useState(false);
   const { inset, isNarrow } = useScreenInset();
   const [insights, setInsights] = useState<WeatherMapInsights | null>(null);
   const [boundaries, setBoundaries] = useState<BoundaryItem[]>([]);
@@ -75,6 +79,9 @@ export default function RhythmScreen() {
     setBoundaries(b);
     setPrefs(p);
     setPlans(pl);
+    setRemindersOn(
+      await hasDailyRhythms().catch(() => false)
+    );
     setAllyName(p.trusted_ally_name ?? '');
     setAllyPhone(p.trusted_ally_phone ?? '');
   }, []);
@@ -132,15 +139,65 @@ export default function RhythmScreen() {
   };
 
   const handleSwitchBedtime = async (bedtime: string) => {
+    if (reminderBusy) return;
+
     Haptics.selectionAsync().catch(() => {});
+
     await updatePreferences({ bedtime_hhmm: bedtime });
+
     try {
-      const granted = await requestNotificationPermission();
-      if (granted) await scheduleDailyRhythms(prefs?.morning_hhmm ?? '07:30', bedtime);
+      // Changing a time does not enable reminders.
+      if (await hasDailyRhythms()) {
+        await scheduleDailyRhythms(
+          prefs?.morning_hhmm ?? '07:30',
+          bedtime
+        );
+      }
     } catch {
-      // Ignored if local notifications unavailable in Expo Go
+      Alert.alert(
+        'Reminder unavailable',
+        'Your bedtime was saved.'
+      );
     }
+
     await loadAll();
+  };
+
+  const handleToggleReminders = async (next: boolean) => {
+    if (reminderBusy || !prefs) return;
+
+    setReminderBusy(true);
+
+    try {
+      if (!next) {
+        await cancelDailyRhythms();
+      } else {
+        const granted =
+          await requestNotificationPermission();
+
+        if (granted) {
+          await scheduleDailyRhythms(
+            prefs.morning_hhmm,
+            prefs.bedtime_hhmm
+          );
+        } else {
+          Alert.alert(
+            'Notifications disabled',
+            'Allow notifications in device settings to receive reminders.'
+          );
+        }
+      }
+    } catch {
+      Alert.alert(
+        'Reminder unavailable',
+        'Unable to update reminders right now.'
+      );
+    } finally {
+      setRemindersOn(
+        await hasDailyRhythms().catch(() => false)
+      );
+      setReminderBusy(false);
+    }
   };
 
   const handleToggleBiometric = async (next: boolean) => {
@@ -153,11 +210,6 @@ export default function RhythmScreen() {
       }
     }
     await updatePreferences({ biometric_lock: next });
-    await loadAll();
-  };
-
-  const handleToggleBurnBox = async (burnImmediately: boolean) => {
-    await updatePreferences({ save_laments: !burnImmediately });
     await loadAll();
   };
 
@@ -179,11 +231,13 @@ export default function RhythmScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headingBlock}>
-          <Text style={styles.eyebrow}>Patterns & stewardship</Text>
+          <Text style={styles.eyebrow}>Your activity, plans and settings</Text>
           <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-            Rhythm
+            Progress
           </Text>
         </View>
+
+        <StillwaterActivity />
 
         {/* 1. Active 24-Hour Boundaries (Custody of the Senses) */}
         <View style={styles.sectionBlock}>
@@ -251,34 +305,28 @@ export default function RhythmScreen() {
             {insights?.hasEnoughData ? (
               <>
                 <View style={styles.metricRow}>
-                  <Text style={styles.rowLabel}>Peak noisy window</Text>
+                  <Text style={styles.rowLabel}>Most recorded events</Text>
                   <Text style={styles.rowValue}>{insights.peakWindowLabel}</Text>
                 </View>
 
                 <View style={styles.divider} />
 
                 <View style={styles.metricRow}>
-                  <Text style={styles.rowLabel}>Most common root need</Text>
+                  <Text style={styles.rowLabel}>Most common recorded tag</Text>
                   <Text style={styles.rowValue}>
                     {insights.topEmotionTag ?? 'Still observing'}
                   </Text>
                 </View>
 
-                {insights.examenProtectionRate !== null && (
-                  <>
-                    <View style={styles.divider} />
-                    <View style={styles.metricRow}>
-                      <Text style={styles.rowLabel}>Clarity rate on Evening Examen nights</Text>
-                      <Text style={[styles.rowValue, { color: Palette.light.success }]}>
-                        {insights.examenProtectionRate}%
-                      </Text>
-                    </View>
-                  </>
-                )}
+                <Text style={styles.bodyMuted}>
+                  Based on {insights.totalEventsLast30d} recorded
+                  pauses and returns. These observations do not
+                  predict setbacks.
+                </Text>
               </>
             ) : (
               <Text style={styles.bodyMuted}>
-                Check in quietly over the next few days. Once you log at least 3 pauses or resets, your personal weather patterns will surface here.
+                After three recorded pauses or returns, a preliminary activity summary will appear here.
               </Text>
             )}
           </View>
@@ -390,6 +438,29 @@ export default function RhythmScreen() {
           </View>
         </View>
 
+        {__DEV__ && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push({
+              pathname: '/onboarding',
+              params: { preview: '1' },
+            })}
+            style={{
+              padding: 16,
+              borderRadius: 14,
+              backgroundColor: '#DCE6D9',
+            }}
+          >
+            <Text style={{
+              color: '#193B35',
+              fontWeight: '600',
+              textAlign: 'center',
+            }}>
+              Preview V2 onboarding
+            </Text>
+          </Pressable>
+        )}
+
         {/* 5. Care & Preferences */}
         {prefs && (
           <View style={styles.sectionBlock}>
@@ -411,7 +482,32 @@ export default function RhythmScreen() {
 
               <View style={styles.divider} />
 
-              <Text style={styles.fieldLabel}>Evening Examen reminder (30m before sleep)</Text>
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>
+                    Quiet reminders
+                  </Text>
+                  <Text style={styles.smallNote}>
+                    Optional morning and evening notifications
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Quiet reminders"
+                  value={remindersOn}
+                  disabled={reminderBusy}
+                  onValueChange={handleToggleReminders}
+                  trackColor={{
+                    true: Palette.light.primary,
+                    false: Palette.light.border,
+                  }}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.fieldLabel}>
+                Usual bedtime
+              </Text>
               <View style={styles.chipRow}>
                 {BEDTIMES.map((b) => (
                   <ChoiceChip
@@ -441,14 +537,11 @@ export default function RhythmScreen() {
 
               <View style={styles.switchRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Burn Box laments</Text>
-                  <Text style={styles.smallNote}>Dissolve laments immediately without saving</Text>
+                  <Text style={styles.fieldLabel}>Private laments</Text>
+                  <Text style={styles.smallNote}>
+                    New lament text is not saved to your recovery record.
+                  </Text>
                 </View>
-                <Switch
-                  value={!prefs.save_laments}
-                  onValueChange={handleToggleBurnBox}
-                  trackColor={{ true: Palette.light.primary, false: Palette.light.border }}
-                />
               </View>
             </View>
           </View>

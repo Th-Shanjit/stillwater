@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
@@ -20,8 +21,10 @@ export default function RootLayout() {
 
   const [dbReady, setDbReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const onboardingRedirected = useRef(false);
   const [isLocked, setIsLocked] = useState(false);
   const appStateRef = useRef(AppState.currentState);
+  const authInProgress = useRef(false);
 
   const [fontsLoaded] = useFonts({
     Newsreader_400Regular,
@@ -29,6 +32,8 @@ export default function RootLayout() {
   });
 
   const promptUnlock = useCallback(async () => {
+    if (authInProgress.current) return;
+    authInProgress.current = true;
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Unlock Stillwater',
@@ -38,7 +43,9 @@ export default function RootLayout() {
         setIsLocked(false);
       }
     } catch {
-      setIsLocked(false);
+      setIsLocked(true);
+    } finally {
+      authInProgress.current = false;
     }
   }, []);
 
@@ -71,16 +78,24 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (isLocked && dbReady && fontsLoaded) {
-      promptUnlock();
+      // Defer the native prompt until after rendering.
+      const timer = setTimeout(() => {
+        void promptUnlock();
+      }, 0);
+
+      return () => clearTimeout(timer);
     }
   }, [isLocked, dbReady, fontsLoaded, promptUnlock]);
 
   useEffect(() => {
     if (!navState?.key || !dbReady || !fontsLoaded) return;
     const inOnboarding = segments[0] === 'onboarding';
-    if (needsOnboarding && !inOnboarding) {
-      setNeedsOnboarding(false);
-      router.replace('/onboarding');
+    if (needsOnboarding && !onboardingRedirected.current) {
+      onboardingRedirected.current = true;
+
+      if (!inOnboarding) {
+        router.replace('/onboarding');
+      }
     }
   }, [navState?.key, dbReady, fontsLoaded, needsOnboarding, segments, router]);
 
@@ -94,6 +109,14 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }}>
+      <StatusBar
+        style={
+          !isLocked &&
+          ['pause', 'examen'].includes(String(segments[0]))
+            ? 'light'
+            : 'dark'
+        }
+      />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
@@ -106,7 +129,7 @@ export default function RootLayout() {
         <View style={styles.lockOverlay}>
           <StillwaterMark size={38} color={Palette.light.scripture} />
           <Text style={styles.lockBrand}>stillwater.</Text>
-          <Text style={styles.lockSub}>Your space is private.</Text>
+          <Text style={styles.lockSub}>Unlock to continue.</Text>
           <PrimaryButton
             label="Unlock"
             onPress={promptUnlock}

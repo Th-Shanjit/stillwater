@@ -1,3 +1,6 @@
+import type { RecoveryFlow } from '../content/recoveryEvents';
+import { GuidedPracticePlayer } from './GuidedPracticePlayer';
+import { fromLegacyPractice } from '../content/guidedPractice';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -25,6 +28,10 @@ interface AudioRescuePlayerProps {
   track: RescueAudioTrack;
   onComplete: () => void;
   completeLabel?: string;
+  inProgressLabel?: string;
+  practiceSource?: RecoveryFlow;
+  parentSessionId?: string;
+  onPlaybackStarted?: () => void;
 }
 
 function formatClock(sec: number): string {
@@ -34,10 +41,12 @@ function formatClock(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function AudioRescuePlayer({
+function RecordedAudioPlayer({
   track,
   onComplete,
   completeLabel = 'Put phone down & close',
+  inProgressLabel = 'Return to options',
+  onPlaybackStarted,
 }: AudioRescuePlayerProps) {
   const hasRealAudio = Boolean(track.audioUri);
   const audioSource = useMemo(
@@ -48,6 +57,12 @@ export function AudioRescuePlayer({
   // Expo SDK 58 native audio player hook
   const player = useAudioPlayer(audioSource);
   const status = useAudioPlayerStatus(player);
+
+  useEffect(() => {
+    if (hasRealAudio && status.playing) {
+      onPlaybackStarted?.();
+    }
+  }, [hasRealAudio, status.playing, onPlaybackStarted]);
 
   // Fallback timed-script state when audioUri is null (pre-recording)
   const [timedRunning, setTimedRunning] = useState(true);
@@ -182,9 +197,14 @@ export function AudioRescuePlayer({
     <View style={styles.wrapper}>
       <View style={styles.headerBlock}>
         <Text style={styles.eyebrow}>
-          {hasRealAudio ? 'AUDIO SANCTUARY' : 'GUIDED RESCUE · VOICE-READY'}
+          {hasRealAudio ? 'AUDIO SANCTUARY' : 'GUIDED TEXT PRACTICE'}
         </Text>
         <Text style={styles.title}>{track.title}</Text>
+        {!hasRealAudio && (
+          <Text style={styles.cueText}>
+            Follow the on-screen prompts. This practice does not yet contain a voice recording.
+          </Text>
+        )}
       </View>
 
       <Text style={styles.timer}>{formatClock(remainingSeconds)}</Text>
@@ -233,20 +253,22 @@ export function AudioRescuePlayer({
         </Pressable>
       </View>
 
-      <Pressable
-        onPress={() => {
-          Haptics.selectionAsync().catch(() => {});
-          setEyesClosedDim(true);
-        }}
-        accessibilityRole="button"
-        style={styles.dimToggle}
-      >
-        <Feather name="eye-off" size={16} color={Palette.night.primaryTonalText} />
-        <Text style={styles.dimToggleText}>Dim screen for eyes-closed listening</Text>
-      </Pressable>
+      {hasRealAudio && (
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync().catch(() => {});
+            setEyesClosedDim(true);
+          }}
+          accessibilityRole="button"
+          style={styles.dimToggle}
+        >
+          <Feather name="eye-off" size={16} color={Palette.night.primaryTonalText} />
+          <Text style={styles.dimToggleText}>Dim screen for listening</Text>
+        </Pressable>
+      )}
 
       <PrimaryButton
-        label={isFinished ? completeLabel : 'I’m steady now'}
+        label={isFinished ? completeLabel : inProgressLabel}
         onPress={onComplete}
       />
     </View>
@@ -375,3 +397,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+/**
+ * Preserve the existing public component interface.
+ * Text practices use the V2 guided engine.
+ * Recorded assets retain the native audio implementation.
+ */
+export function AudioRescuePlayer(
+  props: AudioRescuePlayerProps
+) {
+  const { track } = props;
+
+  if (track.audioUri) {
+    return (
+      <RecordedAudioPlayer
+        key={track.id}
+        {...props}
+      />
+    );
+  }
+
+  return (
+    <GuidedPracticePlayer
+      key={track.id}
+      practice={fromLegacyPractice(track)}
+      source={props.practiceSource ?? 'journey'}
+      parentSessionId={props.parentSessionId}
+      onExit={props.onComplete}
+      exitLabel={
+        props.inProgressLabel ??
+        'Return to options'
+      }
+    />
+  );
+}

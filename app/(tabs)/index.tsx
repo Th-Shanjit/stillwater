@@ -1,394 +1,507 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  useCallback, useEffect, useRef, useState,
+} from 'react';
+import {
+  Pressable, View, useWindowDimensions,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Palette, Radius, Sizes, Spacing, Typography } from '../../theme/tokens';
+
 import {
   checkAbsenceAndTouch,
-  ClarityDay,
   completeMorningAnchor,
   getClarityGrid,
-  getLocalDateString,
   getPreferences,
+  getActiveBoundaries,
+  addCustomBoundary,
 } from '../../db/queries';
-import { getSmartMorningAnchor, ResolvedMorningAnchor } from '../../db/contentEngine';
+
+import type { BoundaryItem } from '../../db/queries';
+
+import { getSmartMorningAnchor } from '../../db/contentEngine';
+import type { ResolvedMorningAnchor } from '../../db/contentEngine';
+
+import { StillwaterMark } from '../../components/RoyalUI';
+
 import {
-  AppHeader,
-  StainedGlassArch,
-  useScreenInset,
-} from '../../components/RoyalUI';
+  V2Screen,
+  V2Text,
+  V2Card,
+  V2Button,
+  V2Artwork,
+  V2ActionRow,
+} from '../../components/StillwaterUI';
+
+import { StillwaterV2 } from '../../theme/stillwaterV2';
+
+const mode = 'day' as const;
+const p = StillwaterV2.day;
+
+const suggestedPlan =
+  'Charge my phone outside the bedroom tonight.';
 
 export default function TodayScreen() {
   const router = useRouter();
-  const { inset, isNarrow } = useScreenInset();
-  const [anchor, setAnchor] = useState<ResolvedMorningAnchor | null>(null);
-  const [grid, setGrid] = useState<ClarityDay[]>([]);
-  const [clarityCount, setClarityCount] = useState(0);
-  const [activeDays, setActiveDays] = useState(0);
+  const { width, fontScale } = useWindowDimensions();
+
+  const stacked = width < 340 || fontScale > 1.3;
+
+  const [anchor, setAnchor] =
+    useState<ResolvedMorningAnchor | null>(null);
+
+  const [boundaries, setBoundaries] =
+    useState<BoundaryItem[]>([]);
+
   const [morningDone, setMorningDone] = useState(false);
-  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
+  const [showPrayer, setShowPrayer] = useState(false);
+  const [welcomeBack, setWelcomeBack] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const actionBusy = useRef(false);
 
   useEffect(() => {
-    checkAbsenceAndTouch().then((daysAway) => {
-      if (daysAway >= 7) setShowWelcomeBack(true);
-    });
+    let mounted = true;
+
+    checkAbsenceAndTouch()
+      .then(days => {
+        if (mounted && days >= 7) {
+          setWelcomeBack(true);
+        }
+      })
+      .catch(() => {});
+
+    return () => { mounted = false; };
   }, []);
 
-  const loadData = useCallback(async () => {
-    const prefs = await getPreferences();
-    const [res, smartAnchor] = await Promise.all([
-      getClarityGrid(30),
-      getSmartMorningAnchor(prefs.tone_track),
-    ]);
-    setAnchor(smartAnchor);
-    setGrid(res.grid);
-    setClarityCount(res.clarityCount);
-    setActiveDays(res.activeDays);
-    const todayCell = res.grid[res.grid.length - 1];
-    setMorningDone(Boolean(todayCell?.morningCompleted));
+  const load = useCallback(async () => {
+    setError('');
+
+    try {
+      const prefs = await getPreferences();
+
+      const [activity, nextAnchor, plans] =
+        await Promise.all([
+          getClarityGrid(30),
+          getSmartMorningAnchor(prefs.tone_track),
+          getActiveBoundaries(),
+        ]);
+
+      setAnchor(nextAnchor);
+      setBoundaries(plans);
+
+      const today =
+        activity.grid[activity.grid.length - 1];
+
+      setMorningDone(Boolean(today?.morningCompleted));
+      setReady(true);
+
+    } catch {
+      setError('Unable to load your personal plan. Try again.');
+    }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData])
+      void load();
+    }, [load])
   );
 
-  const todayStr = getLocalDateString();
-  const formattedDay = new Date().toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  });
-
-  const handleCarryToday = async () => {
-    if (!anchor) return;
-    await completeMorningAnchor(anchor.id);
-    await loadData();
+  const openPlan = () => {
+    router.push('/(tabs)/rhythm');
   };
 
+  const savePlan = async () => {
+    if (actionBusy.current) return;
+
+    actionBusy.current = true;
+    setSaving(true);
+    setError('');
+
+    try {
+      const current = await getActiveBoundaries();
+
+      if (!current.some(item =>
+        item.label === suggestedPlan
+      )) {
+        await addCustomBoundary(suggestedPlan);
+      }
+
+      await load();
+
+    } catch {
+      setError('Your plan could not be saved. Please try again.');
+    } finally {
+      actionBusy.current = false;
+      setSaving(false);
+    }
+  };
+
+  const carryPrayer = async () => {
+    if (!anchor || morningDone || actionBusy.current) {
+      return;
+    }
+
+    actionBusy.current = true;
+    setSaving(true);
+
+    try {
+      await completeMorningAnchor(anchor.id);
+      setMorningDone(true);
+      await load();
+
+    } catch {
+      setError('Unable to save this practice.');
+    } finally {
+      actionBusy.current = false;
+      setSaving(false);
+    }
+  };
+
+  const activePlan = boundaries[0];
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppHeader />
+    <V2Screen mode={mode} bottomInset={false}>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { paddingHorizontal: inset },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Local Date Heading */}
-        <View style={styles.headingBlock}>
-          <Text style={styles.eyebrow}>{formattedDay}</Text>
-          <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.screenTitle]}>
-            Today
-          </Text>
-        </View>
+      {/* Brand and existing settings destination */}
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 9,
+      }}>
+        <StillwaterMark size={27} color={p.primary} />
 
-        {/* Zero-Guilt 7+ Day Absence Welcome Banner */}
-        {showWelcomeBack && (
-          <View style={styles.welcomeCard}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={styles.welcomeTitle}>Welcome back.</Text>
-              <Text style={styles.welcomeSub}>
-                No need to explain where you have been. Today is a clean table.
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => setShowWelcomeBack(false)}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss welcome back message"
-            >
-              <Feather name="x" size={18} color={Palette.light.scripture} />
-            </Pressable>
-          </View>
-        )}
-
-        {/* State-Aware Morning Anchor — Liturgical Violet Scripture Panel */}
-        {anchor && (
-          <View style={styles.scriptureCard}>
-            <StainedGlassArch />
-            <View style={styles.scriptureInner}>
-              <Text style={styles.scriptureEyebrow}>{anchor.badge}</Text>
-              <Text style={styles.scriptureQuote}>“{anchor.excerpt}”</Text>
-              <Text style={styles.scriptureBody}>{anchor.reflection}</Text>
-
-              <Pressable
-                onPress={handleCarryToday}
-                accessibilityRole="button"
-                accessibilityState={{ selected: morningDone }}
-                style={({ pressed }) => [
-                  styles.carryBtn,
-                  morningDone && styles.carryBtnDone,
-                  pressed && { opacity: 0.9, transform: [{ scale: 0.985 }] },
-                ]}
-              >
-                {morningDone && (
-                  <Feather name="check" size={17} color={Palette.light.onPrimary} />
-                )}
-                <Text style={[styles.carryBtnText, morningDone && styles.carryBtnTextDone]}>
-                  {morningDone ? 'Carried into today' : 'Carry this today'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {/* 30-Day Clarity Panel — White Grouped Surface */}
-        <View style={styles.clarityPanel}>
-          <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>30-Day Clarity</Text>
-            <Pressable
-              onPress={() => router.push('/(tabs)/rhythm')}
-              hitSlop={10}
-              accessibilityRole="button"
-            >
-              <Text style={styles.quietLink}>Rhythm ↗</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.metricRow}>
-            <Text style={styles.metricNumber}>{clarityCount}</Text>
-            <Text style={styles.metricCaption}>
-              of the last {Math.max(activeDays, 1)} days lived in clarity.
-            </Text>
-          </View>
-
-          <View style={styles.calendarGrid}>
-            {grid.map((day) => {
-              const isToday = day.date === todayStr;
-              const dayNum = Number(day.date.slice(8, 10));
-              return (
-                <View
-                  key={day.date}
-                  accessible
-                  accessibilityLabel={`${day.date}: ${day.status}`}
-                  style={[
-                    styles.cell,
-                    day.status === 'clarity' && styles.cellClarity,
-                    day.status === 'returned' && styles.cellReturned,
-                    isToday && styles.cellToday,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.cellText,
-                      day.status === 'clarity' && styles.cellTextClarity,
-                      day.status === 'returned' && styles.cellTextReturned,
-                    ]}
-                  >
-                    {dayNum}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Immediate Urge Support — Sacred Crimson Blush Row */}
-        <Pressable
-          onPress={() => router.push('/pause')}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.supportRow,
-            pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] },
-          ]}
+        <V2Text
+          mode={mode}
+          variant="section"
+          style={{ flex: 1, letterSpacing: -0.6 }}
         >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.supportTitle}>Take a Pause</Text>
-            <Text style={styles.supportSub}>60-second breath prayer & weather check</Text>
-          </View>
-          <Feather name="arrow-right" size={20} color={Palette.light.support} />
+          stillwater.
+        </V2Text>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open plans and settings"
+          onPress={openPlan}
+          style={{
+            minWidth: 48,
+            minHeight: 48,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Feather
+            name="settings"
+            size={22}
+            color={p.muted}
+          />
         </Pressable>
+      </View>
 
-        {/* Grouped Daily Practices List */}
-        <View style={styles.groupedRows}>
-          <Pressable
-            onPress={() => router.push('/grace-reset')}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
+      <V2Text mode={mode} muted variant="secondary">
+        {new Date().toLocaleDateString(undefined, {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        })}
+      </V2Text>
+
+      {/* Essential support always available */}
+      <V2Card
+        mode="night"
+        style={{
+          backgroundColor: '#193B35',
+          borderColor: '#193B35',
+          padding: 12,
+        }}
+      >
+        <V2Artwork
+          mode={mode}
+          kind="water"
+          height={88}
+        />
+
+        <View style={{ padding: 6, gap: 12 }}>
+          <V2Text
+            mode="night"
+            variant="display"
+            style={{
+              fontSize: 34,
+              lineHeight: 38,
+            }}
           >
-            <Feather name="rotate-ccw" size={Sizes.icon} color={Palette.light.scripture} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Reset with Grace</Text>
-              <Text style={styles.rowSub}>Honest debrief & 24-hour boundary</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={Palette.light.textSecondary} />
-          </Pressable>
+            Need a moment?
+          </V2Text>
 
-          <View style={styles.rowDivider} />
-
-          <Pressable
-            onPress={() => router.push('/examen')}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
-          >
-            <Feather name="moon" size={Sizes.icon} color={Palette.light.scripture} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Evening Examen</Text>
-              <Text style={styles.rowSub}>2-minute pre-bed wind-down</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={Palette.light.textSecondary} />
-          </Pressable>
+          <V2Button
+            mode="night"
+            label="Help me right now"
+            icon="arrow-right"
+            onPress={() => router.push('/pause')}
+          />
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </V2Card>
+
+      <View style={{
+        flexDirection: stacked ? 'column' : 'row',
+        gap: 10,
+      }}>
+        {([
+          {
+            key: 'reset',
+            icon: 'rotate-ccw',
+            title: 'Start again',
+            subtitle: 'After a setback',
+          },
+          {
+            key: 'plan',
+            icon: 'compass',
+            title: 'My plan',
+            subtitle: 'Prepare for today',
+          },
+        ] as const).map(item => (
+          <Pressable
+            key={item.key}
+            accessibilityRole="button"
+            onPress={() => {
+              if (item.key === 'reset') {
+                router.push('/grace-reset');
+              } else {
+                openPlan();
+              }
+            }}
+            style={({ pressed }) => ({
+              flex: stacked ? undefined : 1,
+              minHeight: 108,
+              padding: 15,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: p.border,
+              backgroundColor:
+                item.key === 'plan'
+                  ? p.secondary
+                  : p.surface,
+              opacity: pressed ? 0.8 : 1,
+              gap: 6,
+            })}
+          >
+            <Feather
+              name={item.icon}
+              size={23}
+              color={p.muted}
+            />
+
+            <V2Text
+              mode={mode}
+              style={{ fontWeight: '600' }}
+            >
+              {item.title}
+            </V2Text>
+
+            <V2Text
+              mode={mode}
+              muted
+              variant="secondary"
+            >
+              {item.subtitle}
+            </V2Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {welcomeBack && (
+        <V2Card mode={mode} tonal>
+          <V2Text mode={mode} variant="section">
+            Welcome back.
+          </V2Text>
+
+          <V2Text mode={mode}>
+            You can begin wherever you are.
+          </V2Text>
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Continue"
+            onPress={() => setWelcomeBack(false)}
+          />
+        </V2Card>
+      )}
+
+      {/* Useful preparation, not mandatory reflection */}
+      <V2Text mode={mode} muted variant="label">
+        YOUR NEXT STEP
+      </V2Text>
+
+      {!ready ? (
+        <V2Card mode={mode}>
+          <V2Text mode={mode} muted>
+            {error || 'Loading your personal plan...'}
+          </V2Text>
+
+          {error !== '' && (
+            <V2Button
+              mode={mode}
+              tone="secondary"
+              label="Try again"
+              onPress={() => void load()}
+            />
+          )}
+        </V2Card>
+      ) : activePlan ? (
+        <V2Card mode={mode}>
+          <Feather
+            name="check-circle"
+            size={23}
+            color={p.muted}
+          />
+
+          <V2Text mode={mode} variant="section">
+            Your current plan
+          </V2Text>
+
+          <V2Text mode={mode}>
+            {activePlan.label}
+          </V2Text>
+
+          <V2Text mode={mode} muted variant="secondary">
+            A chosen action, not a completed outcome.
+          </V2Text>
+
+          <V2Button
+            mode={mode}
+            tone="secondary"
+            label="Manage my plan"
+            onPress={openPlan}
+          />
+        </V2Card>
+      ) : (
+        <V2Card mode={mode}>
+          <Feather
+            name="moon"
+            size={23}
+            color={p.muted}
+          />
+
+          <V2Text mode={mode} variant="section">
+            Prepare for tonight.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            {suggestedPlan}
+          </V2Text>
+
+          <V2Button
+            mode={mode}
+            tone="secondary"
+            icon="plus"
+            label={
+              saving
+                ? 'Saving...'
+                : 'Make this my plan'
+            }
+            disabled={saving}
+            onPress={() => void savePlan()}
+          />
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Choose a different plan"
+            onPress={openPlan}
+          />
+        </V2Card>
+      )}
+
+      {ready && error !== '' && (
+        <V2Card mode={mode}>
+          <V2Text mode={mode}>{error}</V2Text>
+          <V2Button
+            mode={mode}
+            tone="secondary"
+            label="Try again"
+            onPress={() => void load()}
+          />
+        </V2Card>
+      )}
+
+      {/* Spiritual guidance remains available, not mandatory */}
+      <V2Text mode={mode} muted variant="label">
+        MOMENTS OF FAITH
+      </V2Text>
+
+      <V2ActionRow
+        mode={mode}
+        icon="book-open"
+        label="A quiet word for today"
+        description={
+          morningDone
+            ? 'Practice recorded'
+            : 'Scripture and prayer'
+        }
+        selected={showPrayer}
+        onPress={() => setShowPrayer(old => !old)}
+      />
+
+      {showPrayer && (
+        <V2Card mode={mode} tonal>
+          {anchor ? (
+            <>
+              <V2Text mode={mode} muted variant="label">
+                {anchor.source}
+              </V2Text>
+
+              <V2Text
+                mode={mode}
+                variant="display"
+                style={{
+                  fontSize: 26,
+                  lineHeight: 32,
+                }}
+              >
+                {anchor.excerpt}
+              </V2Text>
+
+              <V2Text mode={mode} muted>
+                {anchor.reflection}
+              </V2Text>
+
+              <V2Button
+                mode={mode}
+                label={
+                  morningDone
+                    ? 'Practice recorded'
+                    : 'Carry this into today'
+                }
+                disabled={morningDone || saving}
+                onPress={() => void carryPrayer()}
+              />
+            </>
+          ) : (
+            <V2Text mode={mode} muted>
+              Today&apos;s guidance is not available yet.
+            </V2Text>
+          )}
+        </V2Card>
+      )}
+
+      <V2ActionRow
+        mode={mode}
+        icon="moon"
+        label="End the day"
+        description="Evening Examen"
+        onPress={() => router.push('/examen')}
+      />
+
+      <V2ActionRow
+        mode={mode}
+        icon="compass"
+        label="Explore your journey"
+        description="Guided practices and programmes"
+        onPress={() => router.push('/(tabs)/library')}
+      />
+
+    </V2Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.light.background },
-  container: { paddingTop: Spacing.sm, paddingBottom: Spacing.xxl, gap: Spacing.lg },
-  headingBlock: { gap: Spacing.xs },
-  eyebrow: { ...Typography.label, color: Palette.light.textSecondary },
-  screenTitle: { color: Palette.light.text },
-  welcomeCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-    backgroundColor: Palette.light.scriptureTonal,
-    borderRadius: Radius.standard,
-    padding: Spacing.lg,
-  },
-  welcomeTitle: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Palette.light.scripture,
-  },
-  welcomeSub: {
-    ...Typography.secondary,
-    fontSize: 14,
-    color: Palette.light.scripture,
-  },
-  scriptureCard: {
-    backgroundColor: Palette.light.scripture,
-    borderRadius: Radius.feature,
-    overflow: 'hidden',
-    padding: 20,
-    minHeight: 210,
-  },
-  scriptureInner: { gap: Spacing.md, zIndex: 1 },
-  scriptureEyebrow: { ...Typography.label, color: Palette.light.scriptureGold },
-  scriptureQuote: {
-    ...Typography.scripture,
-    color: Palette.light.scriptureText,
-    maxWidth: '82%',
-  },
-  scriptureBody: {
-    ...Typography.body,
-    fontSize: 15,
-    lineHeight: 22,
-    color: Palette.light.scriptureSecondary,
-  },
-  carryBtn: {
-    marginTop: Spacing.xs,
-    minHeight: Sizes.primaryButtonHeight,
-    borderRadius: Radius.standard,
-    backgroundColor: Palette.light.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-  },
-  carryBtnDone: { backgroundColor: Palette.light.success },
-  carryBtnText: { ...Typography.button, color: Palette.light.scripture },
-  carryBtnTextDone: { color: Palette.light.onPrimary },
-  clarityPanel: {
-    backgroundColor: Palette.light.surface,
-    borderRadius: Radius.feature,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  panelTitle: { ...Typography.section, color: Palette.light.text },
-  quietLink: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 13,
-    fontWeight: '600',
-    color: Palette.light.primary,
-  },
-  metricRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' },
-  metricNumber: { ...Typography.metric, color: Palette.light.text },
-  metricCaption: { ...Typography.secondary, color: Palette.light.textSecondary, flexShrink: 1 },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  cell: {
-    width: '12.5%',
-    aspectRatio: 1,
-    borderRadius: Radius.small,
-    backgroundColor: Palette.light.background,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cellClarity: { backgroundColor: Palette.light.success, borderColor: Palette.light.success },
-  cellReturned: {
-    backgroundColor: Palette.light.scriptureTonal,
-    borderColor: Palette.light.scripture,
-    borderWidth: 1.5,
-  },
-  cellToday: { borderColor: Palette.light.primary, borderWidth: 2 },
-  cellText: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 11,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    color: Palette.light.textSecondary,
-  },
-  cellTextClarity: { color: Palette.light.onPrimary },
-  cellTextReturned: { color: Palette.light.scripture },
-  supportRow: {
-    minHeight: 62,
-    borderRadius: Radius.group,
-    backgroundColor: Palette.light.supportBackground,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.supportBorder,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  supportTitle: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Palette.light.support,
-  },
-  supportSub: {
-    ...Typography.secondary,
-    fontSize: 12,
-    color: Palette.light.supportMuted,
-    marginTop: 2,
-  },
-  groupedRows: {
-    backgroundColor: Palette.light.surface,
-    borderRadius: Radius.group,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    paddingHorizontal: Spacing.lg,
-  },
-  actionRow: {
-    minHeight: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  actionRowPressed: { opacity: 0.7 },
-  rowDivider: { height: Sizes.borderWidth, backgroundColor: Palette.light.border },
-  rowTitle: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '600',
-    color: Palette.light.text,
-  },
-  rowSub: { ...Typography.secondary, color: Palette.light.textSecondary, marginTop: 2 },
-});

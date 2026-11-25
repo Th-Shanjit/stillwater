@@ -1,32 +1,33 @@
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Palette, Sizes, Typography } from '../../theme/tokens';
+import { StillwaterV2 } from '../../theme/stillwaterV2';
 
-const resolveIconColor = (color: unknown): string =>
-  typeof color === 'string' ? color : Palette.light.textSecondary;
+const p = StillwaterV2.day;
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
+        tabBarActiveTintColor: p.primary,
+        tabBarInactiveTintColor: p.muted,
         tabBarStyle: {
-          backgroundColor: Palette.light.surface,
-          borderTopColor: Palette.light.border,
-          borderTopWidth: Sizes.borderWidth,
+          backgroundColor: p.surface,
+          borderTopColor: p.border,
+          borderTopWidth: 1,
           elevation: 0,
           shadowOpacity: 0,
-          minHeight: 62,
           paddingTop: 4,
+          minHeight: 60,
         },
         tabBarItemStyle: {
-          minHeight: Sizes.minTouchTarget,
-          paddingVertical: 2,
+          minHeight: 48,
+          paddingVertical: 3,
         },
-        tabBarActiveTintColor: Palette.light.primary,
-        tabBarInactiveTintColor: Palette.light.textSecondary,
         tabBarLabelStyle: {
-          ...Typography.tab,
+          fontSize: 12,
+          fontWeight: '600',
           marginBottom: 2,
         },
       }}
@@ -36,25 +37,27 @@ export default function TabsLayout() {
         options={{
           title: 'Today',
           tabBarIcon: ({ color }) => (
-            <Feather name="sun" size={Sizes.icon} color={resolveIconColor(color)} />
+            <Feather name="home" size={22} color={typeof color === 'string' ? color : p.muted} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="rhythm"
-        options={{
-          title: 'Rhythm',
-          tabBarIcon: ({ color }) => (
-            <Feather name="grid" size={Sizes.icon} color={resolveIconColor(color)} />
-          ),
-        }}
-      />
+
       <Tabs.Screen
         name="library"
         options={{
-          title: 'Library',
+          title: 'Journey',
           tabBarIcon: ({ color }) => (
-            <Feather name="book-open" size={Sizes.icon} color={resolveIconColor(color)} />
+            <Feather name="compass" size={22} color={typeof color === 'string' ? color : p.muted} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="rhythm"
+        options={{
+          title: 'Progress',
+          tabBarIcon: ({ color }) => (
+            <Feather name="bar-chart-2" size={22} color={typeof color === 'string' ? color : p.muted} />
           ),
         }}
       />

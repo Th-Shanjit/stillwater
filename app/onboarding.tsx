@@ -1,372 +1,492 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { Palette, Radius, Sizes, Spacing, Typography } from '../theme/tokens';
-import { ToneTrack, updatePreferences } from '../db/queries';
-import { requestNotificationPermission, scheduleDailyRhythms } from '../db/notifications';
+import { useRef, useState } from 'react';
 import {
-  ChoiceChip,
-  PrimaryButton,
-  StepBar,
-  StillwaterMark,
-  useScreenInset,
-} from '../components/RoyalUI';
-import { PlusOfferView } from '../components/PlusOfferView';
+  Alert, Pressable, Switch, View,
+} from 'react-native';
+import {
+  useLocalSearchParams, useRouter,
+} from 'expo-router';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { Feather } from '@expo/vector-icons';
 
-const WINDOWS = [
-  'Late night in bed',
-  'Home alone',
-  'After high-stress work',
-  'Weekend afternoons',
-  'Scrolling without realizing it',
-];
+import { updatePreferences } from '../db/queries';
+import type { ToneTrack } from '../db/queries';
+
+import {
+  requestNotificationPermission,
+  scheduleDailyRhythms,
+} from '../db/notifications';
+
+import { StillwaterMark } from '../components/RoyalUI';
+
+import {
+  V2Screen, V2Text, V2Button, V2Card,
+  V2Artwork, V2ActionRow,
+} from '../components/StillwaterUI';
+
+import { StillwaterV2 } from '../theme/stillwaterV2';
+
+const mode = 'day' as const;
+const p = StillwaterV2.day;
 
 const BEDTIMES = [
-  { label: '9:30 PM', value: '21:30' },
-  { label: '10:00 PM', value: '22:00' },
-  { label: '10:30 PM', value: '22:30' },
-  { label: '11:00 PM', value: '23:00' },
-  { label: '11:30 PM', value: '23:30' },
-  { label: '12:00 AM', value: '00:00' },
-];
-
-const ICONS = [
-  { id: 'open_book', label: 'Open Book' },
-  { id: 'still_wave', label: 'Still Wave' },
-  { id: 'linen_mark', label: 'Linen Mark' },
-];
+  ['9:30 PM', '21:30'],
+  ['10:00 PM', '22:00'],
+  ['10:30 PM', '22:30'],
+  ['11:00 PM', '23:00'],
+  ['11:30 PM', '23:30'],
+  ['12:00 AM', '00:00'],
+] as const;
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { inset, isNarrow } = useScreenInset();
-  const [step, setStep] = useState(0);
+  const params = useLocalSearchParams<{
+    preview?: string;
+  }>();
+
+  const preview =
+    __DEV__ && params.preview === '1';
+
+  const [personalise, setPersonalise] = useState(false);
   const [track, setTrack] = useState<ToneTrack>('scripture');
-  const [windows, setWindows] = useState<string[]>(['Late night in bed']);
   const [bedtime, setBedtime] = useState('22:30');
-  const [biometricLock, setBiometricLock] = useState(false);
-  const [keepLocalOnly, setKeepLocalOnly] = useState(true);
-  const [appIcon, setAppIcon] = useState('linen_mark');
+
+  const [lock, setLock] = useState(false);
+  const [reminders, setReminders] = useState(false);
+
+  const [checkingLock, setCheckingLock] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const toggleWindow = (w: string) => {
-    Haptics.selectionAsync().catch(() => {});
-    setWindows((prev) => (prev.includes(w) ? prev.filter((i) => i !== w) : [...prev, w]));
-  };
+  const busy = useRef(false);
 
-  const handleToggleBiometrics = async (nextVal: boolean) => {
-    if (!nextVal) {
-      setBiometricLock(false);
+  const toggleLock = async (next: boolean) => {
+    if (checkingLock || saving) return;
+
+    if (!next || preview) {
+      setLock(next);
       return;
     }
+
+    setCheckingLock(true);
+    setError('');
+
     try {
-      const hasHw = await LocalAuthentication.hasHardwareAsync();
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-      setBiometricLock(Boolean(hasHw && enrolled));
+      const available =
+        await LocalAuthentication.hasHardwareAsync();
+
+      const enrolled =
+        await LocalAuthentication.isEnrolledAsync();
+
+      if (!available || !enrolled) {
+        setError(
+          'Set up face or fingerprint authentication in your device settings first.'
+        );
+        return;
+      }
+
+      const result =
+        await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Enable Stillwater app lock',
+          fallbackLabel: 'Use device passcode',
+        });
+
+      setLock(result.success);
+
+      if (!result.success) {
+        setError('App lock was not enabled.');
+      }
     } catch {
-      setBiometricLock(false);
+      setError('App lock is unavailable on this device.');
+    } finally {
+      setCheckingLock(false);
     }
   };
 
-  const handleSavePrivacyAndContinue = async () => {
-    if (saving) return;
+  const enter = async (custom: boolean) => {
+    if (busy.current || checkingLock) return;
+
+    // Development preview never changes preferences.
+    if (preview) {
+      router.back();
+      return;
+    }
+
+    busy.current = true;
     setSaving(true);
+    setError('');
+
     try {
       await updatePreferences({
-        tone_track: track,
-        vulnerable_windows: windows,
-        bedtime_hhmm: bedtime,
-        biometric_lock: biometricLock,
-        save_laments: !keepLocalOnly,
-        app_icon: appIcon,
+        ...(custom ? {
+          tone_track: track,
+          bedtime_hhmm: bedtime,
+          biometric_lock: lock,
+        } : {}),
+        save_laments: false,
+        onboarding_completed: true,
         onboarded_at: new Date().toISOString(),
       });
 
-      try {
-        const granted = await requestNotificationPermission();
-        if (granted) {
-          await scheduleDailyRhythms('07:30', bedtime);
+      if (custom && reminders) {
+        try {
+          const granted =
+            await requestNotificationPermission();
+
+          if (granted) {
+            await scheduleDailyRhythms('07:30', bedtime);
+          } else {
+            Alert.alert(
+              'Reminders not enabled',
+              'You can enable them later in Progress.'
+            );
+          }
+        } catch {
+          Alert.alert(
+            'Reminders unavailable',
+            'You can continue using Stillwater without reminders.'
+          );
         }
-      } catch {
-        // Local notifications gracefully skipped if unavailable in Expo Go
       }
 
-      setStep(4);
+      router.replace('/(tabs)');
+
+    } catch {
+      setError(
+        'Your setup could not be saved. Please try again.'
+      );
     } finally {
+      busy.current = false;
       setSaving(false);
     }
   };
 
-  const handleEnterApp = async () => {
-    await updatePreferences({ onboarding_completed: true });
-    router.replace('/(tabs)');
-  };
-
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView
-        contentContainerStyle={[styles.container, { paddingHorizontal: inset }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {step > 0 && <StepBar total={4} current={step - 1} />}
-
-        {step === 0 && (
-          <View style={styles.block}>
-            <View style={styles.brandRow}>
-              <StillwaterMark size={28} color={Palette.light.scripture} />
-              <Text style={styles.wordmark}>stillwater.</Text>
-            </View>
-            <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-              An undivided heart, one ordinary day at a time.
-            </Text>
-            <Text style={styles.body}>
-              A quiet companion for stepping out of compulsive habits—without streaks, shame, or surveillance.
-            </Text>
-            <PrimaryButton label="Begin" onPress={() => setStep(1)} style={{ marginTop: Spacing.md }} />
-          </View>
-        )}
-
-        {step === 1 && (
-          <View style={styles.block}>
-            <Text style={styles.eyebrow}>1 OF 4 · CHOOSE YOUR VOICE</Text>
-            <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-              How does prayer usually feel most natural to you?
-            </Text>
-            <Text style={styles.body}>You can switch this anytime.</Text>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: track === 'scripture' }}
-              style={[styles.choiceCard, track === 'scripture' && styles.choiceCardActive]}
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                setTrack('scripture');
-              }}
-            >
-              <Text style={styles.choiceTitle}>Scripture & Reflection</Text>
-              <Text style={styles.choiceSub}>
-                Plainspoken daily anchors rooted in honest biblical passages and grounded reflection.
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: track === 'liturgical' }}
-              style={[styles.choiceCard, track === 'liturgical' && styles.choiceCardActive]}
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                setTrack('liturgical');
-              }}
-            >
-              <Text style={styles.choiceTitle}>Liturgical & Contemplative</Text>
-              <Text style={styles.choiceSub}>
-                Rhythmic breath prayers, evening stillness, and ancient practices of watchfulness.
-              </Text>
-            </Pressable>
-
-            <PrimaryButton label="Continue" onPress={() => setStep(2)} style={{ marginTop: Spacing.sm }} />
-          </View>
-        )}
-
-        {step === 2 && (
-          <View style={styles.block}>
-            <Text style={styles.eyebrow}>2 OF 4 · YOUR VULNERABLE WINDOW</Text>
-            <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-              When does the noise usually get loudest?
-            </Text>
-            <Text style={styles.body}>
-              Knowing your tired hours helps Stillwater meet you before autopilot takes over.
-            </Text>
-
-            <View style={styles.pillWrap}>
-              {WINDOWS.map((w) => (
-                <ChoiceChip
-                  key={w}
-                  label={w}
-                  selected={windows.includes(w)}
-                  onPress={() => toggleWindow(w)}
-                />
-              ))}
-            </View>
-
-            <Text style={styles.label}>When do you usually wind down for sleep?</Text>
-            <Text style={styles.smallNote}>We’ll send one quiet nudge 30 minutes before.</Text>
-
-            <View style={styles.pillWrap}>
-              {BEDTIMES.map((b) => (
-                <ChoiceChip
-                  key={b.value}
-                  label={b.label}
-                  selected={bedtime === b.value}
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    setBedtime(b.value);
-                  }}
-                />
-              ))}
-            </View>
-
-            <PrimaryButton label="Continue" onPress={() => setStep(3)} style={{ marginTop: Spacing.sm }} />
-          </View>
-        )}
-
-        {step === 3 && (
-          <View style={styles.block}>
-            <Text style={styles.eyebrow}>3 OF 4 · PRIVACY & DISGUISE</Text>
-            <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.title]}>
-              This stays between you and God.
-            </Text>
-            <Text style={styles.body}>
-              Your reflections live strictly on your device—never sold, never tracked, never reported to anyone else.
-            </Text>
-
-            <View style={styles.groupedSurface}>
-              <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.choiceTitle}>Require Biometric Lock</Text>
-                  <Text style={styles.smallNote}>
-                    Use FaceID or fingerprint when returning to Stillwater
-                  </Text>
-                </View>
-                <Switch
-                  value={biometricLock}
-                  onValueChange={handleToggleBiometrics}
-                  trackColor={{ true: Palette.light.primary, false: Palette.light.border }}
-                />
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.choiceTitle}>Burn Box Laments</Text>
-                  <Text style={styles.smallNote}>
-                    Dissolve raw laments immediately without saving to disk
-                  </Text>
-                </View>
-                <Switch
-                  value={keepLocalOnly}
-                  onValueChange={setKeepLocalOnly}
-                  trackColor={{ true: Palette.light.primary, false: Palette.light.border }}
-                />
-              </View>
-            </View>
-
-            <Text style={styles.label}>Discreet Icon Style</Text>
-            <View style={styles.pillWrap}>
-              {ICONS.map((icon) => (
-                <ChoiceChip
-                  key={icon.id}
-                  label={icon.label}
-                  selected={appIcon === icon.id}
-                  onPress={() => setAppIcon(icon.id)}
-                />
-              ))}
-            </View>
-
-            <View style={styles.notifPreview}>
-              <Text style={styles.eyebrow}>LOCK-SCREEN NOTIFICATION PREVIEW</Text>
-              <Text style={styles.notifTitle}>Stillwater</Text>
-              <Text style={styles.notifBody}>Your evening reflection is ready.</Text>
-            </View>
-
-            <PrimaryButton
-              label={saving ? 'Saving preferences...' : 'Continue'}
-              onPress={handleSavePrivacyAndContinue}
-              disabled={saving}
-              style={{ marginTop: Spacing.sm }}
-            />
-          </View>
-        )}
-
-        {step === 4 && (
-          <PlusOfferView
-            eyebrow="4 OF 4 · STILLWATER PLUS"
-            headline="Try Stillwater Plus free for 14 days."
-            freeActionLabel="Continue with Free Sanctuary"
-            onUnlocked={handleEnterApp}
-            onContinueFree={handleEnterApp}
+    <V2Screen
+      mode={mode}
+      footer={
+        <View style={{ gap: 8 }}>
+          <V2Button
+            mode={mode}
+            label={
+              saving
+                ? 'Getting things ready...'
+                : preview
+                  ? 'Finish preview'
+                  : personalise
+                    ? 'Enter Stillwater'
+                    : 'Get started'
+            }
+            icon="arrow-right"
+            disabled={saving || checkingLock}
+            onPress={() => void enter(personalise)}
           />
+
+          {!personalise && (
+            <V2Button
+              mode={mode}
+              tone="quiet"
+              label="Personalise my experience"
+              disabled={saving}
+              onPress={() => setPersonalise(true)}
+            />
+          )}
+        </View>
+      }
+    >
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+      }}>
+        <StillwaterMark size={29} color={p.primary} />
+
+        <V2Text
+          mode={mode}
+          variant="section"
+          style={{ flex: 1 }}
+        >
+          stillwater.
+        </V2Text>
+
+        {personalise && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to welcome"
+            disabled={saving || checkingLock}
+            onPress={() => setPersonalise(false)}
+            style={{
+              minWidth: 48,
+              minHeight: 48,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Feather
+              name="arrow-left"
+              size={22}
+              color={p.text}
+            />
+          </Pressable>
         )}
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+
+      {preview && (
+        <V2Text mode={mode} muted variant="label">
+          DEVELOPMENT PREVIEW - NO DATA WILL CHANGE
+        </V2Text>
+      )}
+
+      {!personalise ? (
+        <>
+          <V2Artwork
+            mode={mode}
+            kind="water"
+            height={150}
+          />
+
+          <V2Text mode={mode} variant="display">
+            A place to begin again.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Christian support for changing unwanted
+            habits, one practical step at a time.
+          </V2Text>
+
+          <V2Card mode={mode}>
+            {([
+              [
+                'wind',
+                'Find support in difficult moments.',
+              ],
+              [
+                'compass',
+                'Make small, practical changes.',
+              ],
+              [
+                'heart',
+                'Return with grace, not shame.',
+              ],
+            ] as const).map(([icon, label]) => (
+              <View
+                key={label}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 5,
+                  gap: 12,
+                }}
+              >
+                <Feather
+                  name={icon}
+                  size={21}
+                  color={p.muted}
+                />
+
+                <V2Text
+                  mode={mode}
+                  style={{ flex: 1 }}
+                >
+                  {label}
+                </V2Text>
+              </View>
+            ))}
+          </V2Card>
+
+          <V2Text
+            mode={mode}
+            muted
+            variant="secondary"
+          >
+            No account needed for personal support.
+            Recovery records are stored locally.
+          </V2Text>
+
+          <V2Text
+            mode={mode}
+            muted
+            variant="secondary"
+          >
+            Stillwater complements, rather than replaces,
+            professional support.
+          </V2Text>
+        </>
+      ) : (
+        <>
+          <V2Text mode={mode} muted variant="label">
+            OPTIONAL SETUP
+          </V2Text>
+
+          <V2Text mode={mode} variant="display">
+            Make it your own.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Choose what suits you. Everything here
+            can be adjusted later.
+          </V2Text>
+
+          <V2Text mode={mode} variant="section">
+            Prayer preference
+          </V2Text>
+
+          <V2ActionRow
+            mode={mode}
+            icon="book-open"
+            label="Scripture and reflection"
+            selected={track === 'scripture'}
+            onPress={() => setTrack('scripture')}
+          />
+
+          <V2ActionRow
+            mode={mode}
+            icon="sunrise"
+            label="Liturgical and contemplative"
+            selected={track === 'liturgical'}
+            onPress={() => setTrack('liturgical')}
+          />
+
+          <V2Text mode={mode} variant="section">
+            Privacy and reminders
+          </V2Text>
+
+          <V2Card mode={mode}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <Feather
+                name="lock"
+                color={p.muted}
+                size={22}
+              />
+
+              <View style={{ flex: 1, gap: 3 }}>
+                <V2Text mode={mode}>App lock</V2Text>
+                <V2Text
+                  mode={mode}
+                  muted
+                  variant="secondary"
+                >
+                  Ask for device authentication
+                  when reopening Stillwater.
+                </V2Text>
+              </View>
+
+              <Switch
+                accessibilityLabel="Enable app lock"
+                value={lock}
+                disabled={checkingLock || saving}
+                onValueChange={value => void toggleLock(value)}
+                trackColor={{
+                  true: p.primary,
+                  false: p.border,
+                }}
+              />
+            </View>
+          </V2Card>
+
+          <V2Card mode={mode}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <Feather
+                name="bell"
+                color={p.muted}
+                size={22}
+              />
+
+              <View style={{ flex: 1, gap: 3 }}>
+                <V2Text mode={mode}>Quiet reminders</V2Text>
+                <V2Text
+                  mode={mode}
+                  muted
+                  variant="secondary"
+                >
+                  Optional morning and evening reminders.
+                </V2Text>
+              </View>
+
+              <Switch
+                accessibilityLabel="Enable quiet reminders"
+                value={reminders}
+                disabled={saving}
+                onValueChange={setReminders}
+                trackColor={{
+                  true: p.primary,
+                  false: p.border,
+                }}
+              />
+            </View>
+
+            {reminders && (
+              <>
+                <V2Text mode={mode}>
+                  When do you usually go to bed?
+                </V2Text>
+
+                <View style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}>
+                  {BEDTIMES.map(([label, value]) => (
+                    <Pressable
+                      key={value}
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        selected: bedtime === value,
+                      }}
+                      disabled={saving}
+                      onPress={() => setBedtime(value)}
+                      style={{
+                        minHeight: 48,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: bedtime === value
+                          ? p.primary : p.border,
+                        backgroundColor: bedtime === value
+                          ? p.secondary : p.surface,
+                      }}
+                    >
+                      <V2Text mode={mode}>{label}</V2Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <V2Text
+                  mode={mode}
+                  muted
+                  variant="secondary"
+                >
+                  Morning reminder at 7:30 AM.
+                  Evening reminder 30 minutes before bedtime.
+                </V2Text>
+              </>
+            )}
+          </V2Card>
+
+          <V2Text
+            mode={mode}
+            muted
+            variant="secondary"
+          >
+            Device security and backup settings can affect
+            privacy. New raw laments are not saved.
+          </V2Text>
+        </>
+      )}
+
+      {error !== '' && (
+        <V2Card mode={mode}>
+          <V2Text mode={mode}>{error}</V2Text>
+        </V2Card>
+      )}
+    </V2Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.light.background },
-  container: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.xl },
-  block: { gap: Spacing.lg },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  wordmark: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -1.1,
-    color: Palette.light.text,
-  },
-  eyebrow: { ...Typography.label, color: Palette.light.textSecondary },
-  title: { color: Palette.light.text },
-  body: { ...Typography.body, color: Palette.light.textSecondary },
-  label: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Palette.light.text,
-    marginTop: Spacing.xs,
-  },
-  smallNote: { ...Typography.secondary, color: Palette.light.textSecondary },
-  choiceCard: {
-    backgroundColor: Palette.light.surface,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    borderRadius: Radius.group,
-    padding: Spacing.lg,
-    gap: Spacing.xs,
-  },
-  choiceCardActive: {
-    borderWidth: 2,
-    borderColor: Palette.light.primary,
-    backgroundColor: Palette.light.primaryTonal,
-  },
-  choiceTitle: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 16,
-    fontWeight: '700',
-    color: Palette.light.text,
-  },
-  choiceSub: { ...Typography.secondary, fontSize: 14, color: Palette.light.textSecondary },
-  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  groupedSurface: {
-    backgroundColor: Palette.light.surface,
-    borderRadius: Radius.group,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    paddingHorizontal: Spacing.lg,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  divider: { height: Sizes.borderWidth, backgroundColor: Palette.light.border },
-  notifPreview: {
-    backgroundColor: Palette.light.surface,
-    borderRadius: Radius.group,
-    padding: Spacing.lg,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    gap: Spacing.xs,
-  },
-  notifTitle: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Palette.light.text,
-  },
-  notifBody: { ...Typography.secondary, fontSize: 14, color: Palette.light.textSecondary },
-});

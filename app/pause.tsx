@@ -1,363 +1,606 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+
 import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+  newRecoverySessionId,
+  recordRecoveryEvent,
+} from '../db/recoveryEvents';
+
+import type {
+  RecoveryAction,
+} from '../content/recoveryEvents';
+
+import {
+  useCallback, useRef, useState,
+} from 'react';
+
+import {
+  Alert, Linking, Platform, Pressable, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { Palette, Radius, Sizes, Spacing, Typography } from '../theme/tokens';
+
+import {
+  useIsFocused, useRouter,
+} from 'expo-router';
+
+import { Feather } from '@expo/vector-icons';
+
 import {
   getOffRampForEmotion,
   getPreferences,
   logPauseEvent,
-  ToneTrack,
 } from '../db/queries';
+
 import {
-  BreathRings,
-  ChoiceChip,
-  PrimaryButton,
-  SecondaryButton,
-  StepBar,
-  useScreenInset,
-} from '../components/RoyalUI';
-import { AudioRescuePlayer, RescueAudioTrack } from '../components/AudioRescuePlayer';
-import breathPrayers from '../assets/content/breath_prayers.json';
+  V2Screen,
+  V2Text,
+  V2Button,
+  V2Card,
+  V2ActionRow,
+} from '../components/StillwaterUI';
+
+import { V2Breathing } from '../components/StillwaterBreathing';
+
+import {
+  AudioRescuePlayer,
+} from '../components/AudioRescuePlayer';
+
+import type {
+  RescueAudioTrack,
+} from '../components/AudioRescuePlayer';
+
+import { StillwaterMark } from '../components/RoyalUI';
+import { StillwaterV2 } from '../theme/stillwaterV2';
+
 import midnightAudioData from '../assets/content/midnight_audio.json';
 
-type PauseStep = 'breathe' | 'weather' | 'fork' | 'surf';
+type Scene =
+  | 'main'
+  | 'breathing'
+  | 'alternatives'
+  | 'personal'
+  | 'extended'
+  | 'prayer';
 
-const EMOTIONS = [
-  { key: 'exhausted', label: 'Exhausted', heading: 'Your body wants rest, not a screen.' },
-  { key: 'lonely', label: 'Lonely', heading: 'You are hungry for real presence, not a substitute.' },
-  { key: 'stressed', label: 'Stressed', heading: 'Your nervous system is asking for relief, not a trial.' },
-  { key: 'bored', label: 'Bored', heading: 'Restlessness is just unspent energy looking for a door.' },
-  { key: 'numb', label: 'Numb', heading: 'Trying to feel something fast usually leaves you emptier.' },
-  { key: 'rejected', label: 'Rejected', heading: 'Pain wants anesthesia—let it be heard instead of hidden.' },
-  { key: 'autopilot', label: 'Pure autopilot', heading: 'You caught the habit before it ran the script.' },
+type Outcome =
+  | 'steady'
+  | 'exited_early'
+  | 'ready_to_step_away';
+
+const mode = 'night' as const;
+const p = StillwaterV2.night;
+
+const TRACKS = midnightAudioData as RescueAudioTrack[];
+
+const FREE_TRACK = TRACKS.find(
+  track => track.id === 'urge_1am' &&
+    track.tier === 'free'
+);
+
+const CONTEXTS = [
+  ['exhausted', 'Tired'],
+  ['lonely', 'Lonely'],
+  ['stressed', 'Stressed'],
+  ['bored', 'Bored'],
+  ['numb', 'Feeling numb'],
+  ['rejected', 'Hurt or rejected'],
+  ['autopilot', 'Acting on autopilot'],
 ] as const;
 
-const FREE_SURF_TRACK = (midnightAudioData as RescueAudioTrack[])[0];
+const ALTERNATIVES = [
+  {
+    id: 'move',
+    icon: 'log-out',
+    title: 'Change your surroundings',
+    detail: 'Move to another room if you can.',
+  },
+  {
+    id: 'phone',
+    icon: 'smartphone',
+    title: 'Put your phone away',
+    detail: 'Leave it somewhere out of reach.',
+  },
+  {
+    id: 'water',
+    icon: 'droplet',
+    title: 'Get a glass of water',
+    detail: 'Take a short break from the screen.',
+  },
+] as const;
 
 export default function PauseModal() {
   const router = useRouter();
-  const { inset, isNarrow } = useScreenInset();
-  const [step, setStep] = useState<PauseStep>('breathe');
-  const [track, setTrack] = useState<ToneTrack>('scripture');
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const [phase, setPhase] = useState<'inhale' | 'exhale'>('inhale');
-  const [cyclesCompleted, setCyclesCompleted] = useState(0);
-  const [selectedEmotion, setSelectedEmotion] = useState<(typeof EMOTIONS)[number] | null>(null);
-  const [offRamp, setOffRamp] = useState('');
-  const [usedAudio, setUsedAudio] = useState(false);
+  const focused = useIsFocused();
 
-  const ringScale = useSharedValue(0.86);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recoverySessionId] =
+    useState(newRecoverySessionId);
 
-  useEffect(() => {
-    getPreferences().then((p) => setTrack(p.tone_track));
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  const actionKey =
+    useRef<RecoveryAction | undefined>(undefined);
+
+  const [scene, setScene] = useState<Scene>('main');
+
+  const [selectedAction, setSelectedAction] =
+    useState<string | null>(null);
+
+  const [personalPlan, setPersonalPlan] =
+    useState('');
+
+  const [context, setContext] =
+    useState<string | undefined>();
+
+  const [loadingPlan, setLoadingPlan] =
+    useState(false);
+
+  const [contactBusy, setContactBusy] =
+    useState(false);
+
+  const cyclesCompleted = useRef(0);
+  const usedAudio = useRef(false);
+  const leaving = useRef(false);
+
+  const handleCycles = useCallback((count: number) => {
+    cyclesCompleted.current = Math.max(
+      cyclesCompleted.current,
+      count
+    );
   }, []);
 
-  const activePrayer = useMemo(() => {
-    const matching = breathPrayers.filter((p) => p.track === 'both' || p.track === track);
-    return matching[0] ?? breathPrayers[0];
-  }, [track]);
+  const exit = (outcome: Outcome) => {
+    if (leaving.current) return;
 
-  const totalCycles = activePrayer.defaultCycles ?? 6;
+    leaving.current = true;
 
-  // 0.1 Hz Breath Prayer Loop (4s inhale / 6s exhale) — keeps rings static under reduced motion
-  useEffect(() => {
-    if (step !== 'breathe') return;
+    // Recording is best-effort and must not delay leaving.
+    void logPauseEvent({
+      emotionTag: context,
+      breathCyclesCompleted: cyclesCompleted.current,
+      usedAudio: usedAudio.current,
+      outcome,
+    }).then(() => recordRecoveryEvent({
+      sessionId: recoverySessionId,
+      flow: 'pause',
+      kind: 'pause_exit',
+      contentId: 'immediate_support',
+      contentVersion: 1,
+      action: actionKey.current,
+      result: outcome,
+    })).catch(() => {
+      if (__DEV__) {
+        console.warn('Unable to save pause event.');
+      }
+    });
 
-    let cancelled = false;
-    let currentCycle = 0;
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
 
-    const runCycle = () => {
-      if (cancelled) return;
-      setPhase('inhale');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      if (!reduceMotion) {
-        ringScale.value = withTiming(1.06, {
-          duration: activePrayer.inhaleMs,
-          easing: Easing.inOut(Easing.sin),
-        });
+  const openPersonalPlan = async (
+    tag: string
+  ) => {
+    if (loadingPlan) return;
+
+    setLoadingPlan(true);
+    setContext(tag);
+    actionKey.current = 'personal_plan';
+    setPersonalPlan('');
+
+    try {
+      const plan =
+        await getOffRampForEmotion(tag);
+
+      setPersonalPlan(plan);
+
+    } catch {
+      setPersonalPlan(
+        'Put your phone down and move somewhere else, if possible.'
+      );
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
+
+  const contactSomeone = async () => {
+    if (contactBusy) return;
+
+    setContactBusy(true);
+
+    try {
+      const prefs = await getPreferences();
+
+      const phone = (
+        prefs.trusted_ally_phone ?? ''
+      ).replace(/[^\d+]/g, '');
+
+      if (!phone || !/^\+?\d{5,15}$/.test(phone)) {
+        Alert.alert(
+          'Reach out to someone',
+          'Open your usual messaging app and contact someone you trust. You can save a contact later in Progress.'
+        );
+
+        return;
       }
 
-      timerRef.current = setTimeout(() => {
-        if (cancelled) return;
-        setPhase('exhale');
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft).catch(() => {});
-        if (!reduceMotion) {
-          ringScale.value = withTiming(0.86, {
-            duration: activePrayer.exhaleMs,
-            easing: Easing.inOut(Easing.sin),
-          });
-        }
+      const message =
+        'Could we talk for a few minutes? I could use some company right now.';
 
-        timerRef.current = setTimeout(() => {
-          if (cancelled) return;
-          currentCycle += 1;
-          setCyclesCompleted(currentCycle);
-          if (currentCycle < totalCycles) {
-            runCycle();
-          } else {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          }
-        }, activePrayer.exhaleMs);
-      }, activePrayer.inhaleMs);
-    };
+      const separator =
+        Platform.OS === 'ios' ? '&' : '?';
 
-    runCycle();
+      const url =
+        `sms:${phone}${separator}body=${encodeURIComponent(message)}`;
 
-    return () => {
-      cancelled = true;
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [step, activePrayer, totalCycles, ringScale, reduceMotion]);
+      // Opens a draft. The user chooses whether to send.
+      await Linking.openURL(url);
+      actionKey.current = 'trusted_contact';
 
-  const animatedRingStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: reduceMotion ? 1 : ringScale.value }],
-  }));
-
-  const handleSelectEmotion = async (emotion: (typeof EMOTIONS)[number]) => {
-    Haptics.selectionAsync().catch(() => {});
-    setSelectedEmotion(emotion);
-    const plan = await getOffRampForEmotion(emotion.key);
-    setOffRamp(plan);
-    setStep('fork');
+    } catch {
+      Alert.alert(
+        'Unable to open Messages',
+        'You can contact someone using your usual messaging app.'
+      );
+    } finally {
+      setContactBusy(false);
+    }
   };
 
-  const handleFinish = async (outcome: 'steady' | 'exited_early' = 'steady') => {
-    await logPauseEvent({
-      emotionTag: selectedEmotion?.key,
-      breathCyclesCompleted: cyclesCompleted,
-      usedAudio,
-      outcome,
-    });
-    router.back();
+  const headings: Record<Scene, string> = {
+    main: 'A MOMENT OF STILLNESS',
+    breathing: 'GUIDED BREATHING',
+    alternatives: 'FIND ANOTHER ACTION',
+    personal: 'YOUR PERSONAL PLAN',
+    extended: 'STAY A LITTLE LONGER',
+    prayer: 'A QUIET PRAYER',
   };
-
-  const currentStepIdx = step === 'breathe' ? 0 : step === 'weather' ? 1 : 2;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={[styles.topBar, { paddingHorizontal: inset }]}>
-        <Text style={styles.eyebrow}>THE PAUSE</Text>
-        <Pressable
-          onPress={() => handleFinish('exited_early')}
-          hitSlop={12}
-          accessibilityRole="button"
-          style={styles.closeBtn}
+    <V2Screen
+      mode={mode}
+      footer={
+        <V2Button
+          mode={mode}
+          label="I'm ready to step away"
+          icon="arrow-right"
+          onPress={() => exit('ready_to_step_away')}
+        />
+      }
+    >
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+      }}>
+        {scene !== 'main' && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to support options"
+            onPress={() => setScene('main')}
+            style={{
+              minHeight: 48,
+              minWidth: 48,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Feather
+              name="arrow-left"
+              color={p.text}
+              size={22}
+            />
+          </Pressable>
+        )}
+
+        <V2Text
+          mode={mode}
+          muted
+          variant="label"
+          style={{ flex: 1 }}
         >
-          <Text style={styles.closeText}>Close</Text>
+          {headings[scene]}
+        </V2Text>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close immediate support"
+          onPress={() => exit('exited_early')}
+          style={{
+            minHeight: 48,
+            minWidth: 48,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Feather name="x" color={p.text} size={24} />
         </Pressable>
       </View>
 
-      <View style={{ paddingHorizontal: inset }}>
-        <StepBar total={3} current={currentStepIdx} mode="night" />
-      </View>
-
-      {step === 'breathe' && (
-        <View style={[styles.centerStage, { paddingHorizontal: inset }]}>
-          <View style={styles.ringWrapper}>
-            <Animated.View style={[styles.ringsAbsolute, animatedRingStyle]}>
-              <BreathRings color={Palette.night.breathRing} size={230} />
-            </Animated.View>
-            <View style={styles.innerText}>
-              <Text style={styles.phaseLabel}>
-                {cyclesCompleted >= totalCycles
-                  ? 'STEADY'
-                  : phase === 'inhale'
-                    ? 'INHALE · 4s'
-                    : 'EXHALE · 6s'}
-              </Text>
-              <Text style={styles.prayerText}>
-                {cyclesCompleted >= totalCycles
-                  ? 'Your body has slowed down.'
-                  : phase === 'inhale'
-                    ? activePrayer.inhaleText
-                    : activePrayer.exhaleText}
-              </Text>
-            </View>
+      {scene === 'main' && (
+        <>
+          <View style={{
+            alignItems: 'center',
+            paddingVertical: 12,
+          }}>
+            <StillwaterMark
+              size={64}
+              color={p.accent}
+            />
           </View>
 
-          <Text style={styles.cycleCount}>
-            {Math.min(cyclesCompleted, totalCycles)} of {totalCycles} slow breaths
-          </Text>
+          <V2Text mode={mode} variant="display">
+            Just this moment.
+          </V2Text>
 
-          {cyclesCompleted >= totalCycles ? (
-            <PrimaryButton label="Continue" onPress={() => setStep('weather')} />
-          ) : (
-            <SecondaryButton
-              label="Skip ahead to check-in"
-              mode="night"
-              onPress={() => setStep('weather')}
+          <V2Card mode={mode} tonal>
+            <V2Text
+              mode={mode}
+              muted
+              variant="label"
+            >
+              DO THIS FIRST
+            </V2Text>
+
+            <V2Text mode={mode} variant="heading">
+              Set your phone down.
+            </V2Text>
+
+            <V2Text mode={mode} muted>
+              If you can, stand up and move
+              somewhere else.
+            </V2Text>
+          </V2Card>
+
+          <V2Text mode={mode} muted variant="label">
+            IF YOU NEED MORE SUPPORT
+          </V2Text>
+
+          <V2ActionRow
+            mode={mode}
+            icon="wind"
+            label="Guide my breathing"
+            description="30-second optional practice"
+            onPress={() => setScene('breathing')}
+          />
+
+          <V2ActionRow
+            mode={mode}
+            icon="compass"
+            label="Show me another action"
+            onPress={() => setScene('alternatives')}
+          />
+
+          {FREE_TRACK && (
+            <V2ActionRow
+              mode={mode}
+              icon={FREE_TRACK.audioUri
+                ? 'headphones' : 'book-open'}
+              label="Stay with me a little longer"
+              description="3-minute guided practice"
+              onPress={() => setScene('extended')}
             />
           )}
-        </View>
+
+          <V2ActionRow
+            mode={mode}
+            icon="message-circle"
+            label="Contact someone I trust"
+            onPress={() => void contactSomeone()}
+          />
+
+          <V2ActionRow
+            mode={mode}
+            icon="heart"
+            label="Take a moment to pray"
+            onPress={() => setScene('prayer')}
+          />
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="I feel steadier now"
+            onPress={() => exit('steady')}
+          />
+        </>
       )}
 
-      {step === 'weather' && (
-        <ScrollView
-          contentContainerStyle={[styles.contentStage, { paddingHorizontal: inset }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.heading]}>
-            A pull knocking at the door is not a moral verdict.
-          </Text>
-          <Text style={styles.subtext}>
-            It is just noise passing through a tired mind. What are you actually carrying underneath this urge?
-          </Text>
+      {scene === 'breathing' && (
+        <>
+          <V2Text mode={mode} variant="display">
+            Breathe gently.
+          </V2Text>
 
-          <View style={styles.pillWrap}>
-            {EMOTIONS.map((e) => (
-              <ChoiceChip
-                key={e.key}
-                label={e.label}
-                selected={selectedEmotion?.key === e.key}
-                mode="night"
-                onPress={() => handleSelectEmotion(e)}
+          <V2Text mode={mode} muted>
+            Rest your feet on the floor.
+            There is no need to force your breath.
+          </V2Text>
+
+          <V2Breathing
+            mode={mode}
+            active={focused}
+            onCyclesCompleted={handleCycles}
+          />
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Skip breathing"
+            onPress={() => setScene('main')}
+          />
+        </>
+      )}
+
+      {scene === 'alternatives' && (
+        <>
+          <V2Text mode={mode} variant="display">
+            One small action.
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Choose whatever is practical right now.
+          </V2Text>
+
+          {ALTERNATIVES.map(action => (
+            <V2ActionRow
+              key={action.id}
+              mode={mode}
+              icon={action.icon}
+              label={action.title}
+              description={action.detail}
+              selected={selectedAction === action.id}
+              onPress={() => {
+                setSelectedAction(action.id);
+                actionKey.current = action.id;
+              }}
+            />
+          ))}
+
+          {selectedAction && (
+            <V2Card mode={mode} tonal>
+              <V2Text mode={mode} variant="section">
+                {ALTERNATIVES.find(
+                  action => action.id === selectedAction
+                )?.title}
+              </V2Text>
+
+              <V2Text mode={mode} muted>
+                You can leave the app and try this now.
+              </V2Text>
+            </V2Card>
+          )}
+
+          <V2ActionRow
+            mode={mode}
+            icon="message-circle"
+            label="Contact someone I trust"
+            onPress={() => void contactSomeone()}
+          />
+
+          <V2Button
+            mode={mode}
+            tone="secondary"
+            label="Find an action from my personal plan"
+            onPress={() => setScene('personal')}
+          />
+        </>
+      )}
+
+      {scene === 'personal' && (
+        <>
+          <V2Text mode={mode} variant="display">
+            What would help?
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Optional: choose what fits your situation
+            to see a related personal plan.
+          </V2Text>
+
+          <View style={{ gap: 8 }}>
+            {CONTEXTS.map(([key, label]) => (
+              <V2ActionRow
+                key={key}
+                mode={mode}
+                icon="circle"
+                label={label}
+                selected={context === key}
+                onPress={() => void openPersonalPlan(key)}
               />
             ))}
           </View>
-        </ScrollView>
-      )}
 
-      {step === 'fork' && selectedEmotion && (
-        <ScrollView
-          contentContainerStyle={[styles.contentStage, { paddingHorizontal: inset }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.goldEyebrow}>
-            UNDERNEATH THE PULL · {selectedEmotion.label.toUpperCase()}
-          </Text>
-          <Text style={[Typography.display, isNarrow && Typography.displayNarrow, styles.heading]}>
-            {selectedEmotion.heading}
-          </Text>
-          <Text style={styles.subtext}>
-            You do not need to win the whole month tonight—just the next ten minutes.
-          </Text>
+          {loadingPlan && (
+            <V2Text mode={mode} muted>
+              Loading your plan...
+            </V2Text>
+          )}
 
-          <View style={styles.offRampCard}>
-            <Text style={styles.eyebrow}>YOUR CHOSEN OFF-RAMP</Text>
-            <Text style={styles.offRampText}>{offRamp}</Text>
-          </View>
+          {personalPlan !== '' && (
+            <V2Card mode={mode} tonal>
+              <V2Text
+                mode={mode}
+                muted
+                variant="label"
+              >
+                YOUR NEXT ACTION
+              </V2Text>
 
-          <View style={styles.forkButtons}>
-            <PrimaryButton
-              label="I’m steady — close for now"
-              onPress={() => handleFinish('steady')}
-            />
-            <SecondaryButton
-              label="Ride out 3 more minutes (Eyes-Closed Audio)"
-              mode="night"
-              onPress={() => {
-                setUsedAudio(true);
-                setStep('surf');
-              }}
-            />
-          </View>
-        </ScrollView>
-      )}
+              <V2Text mode={mode} variant="section">
+                {personalPlan}
+              </V2Text>
+            </V2Card>
+          )}
 
-      {step === 'surf' && (
-        <View style={{ flex: 1, paddingHorizontal: inset, paddingBottom: Spacing.xl }}>
-          <AudioRescuePlayer
-            track={FREE_SURF_TRACK}
-            onComplete={() => handleFinish('steady')}
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Skip this question"
+            onPress={() => setScene('alternatives')}
           />
-        </View>
+        </>
       )}
-    </SafeAreaView>
+
+      {scene === 'extended' && FREE_TRACK && (
+        <>
+          <AudioRescuePlayer
+            track={FREE_TRACK}
+            practiceSource="pause"
+            parentSessionId={recoverySessionId}
+            completeLabel="Return to support options"
+            inProgressLabel="Return to support options"
+            onPlaybackStarted={() => {
+              usedAudio.current = true;
+            }}
+            onComplete={() => setScene('main')}
+          />
+        </>
+      )}
+
+      {scene === 'prayer' && (
+        <>
+          <View style={{
+            alignItems: 'center',
+            paddingVertical: 32,
+          }}>
+            <StillwaterMark
+              size={80}
+              color={p.accent}
+            />
+          </View>
+
+          <V2Text
+            mode={mode}
+            variant="display"
+            style={{ textAlign: 'center' }}
+          >
+            Be still.
+          </V2Text>
+
+          <V2Card mode={mode} tonal>
+            <V2Text
+              mode={mode}
+              variant="heading"
+              style={{ textAlign: 'center' }}
+            >
+              Lord, help me choose the next good thing.
+            </V2Text>
+          </V2Card>
+
+          <V2Text
+            mode={mode}
+            muted
+            style={{ textAlign: 'center' }}
+          >
+            Stay here briefly, or return whenever
+            you are ready.
+          </V2Text>
+
+          <V2Button
+            mode={mode}
+            tone="quiet"
+            label="Return to support options"
+            onPress={() => setScene('main')}
+          />
+        </>
+      )}
+    </V2Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.night.background },
-  topBar: {
-    minHeight: 54,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eyebrow: { ...Typography.label, color: Palette.night.textSecondary },
-  goldEyebrow: { ...Typography.label, color: Palette.night.scriptureGold },
-  closeBtn: { minHeight: Sizes.minTouchTarget, justifyContent: 'center' },
-  closeText: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '600',
-    color: Palette.night.primaryTonalText,
-  },
-  centerStage: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.xl,
-  },
-  ringWrapper: {
-    width: 240,
-    height: 240,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ringsAbsolute: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  innerText: { width: 205, alignItems: 'center', gap: Spacing.sm },
-  phaseLabel: {
-    ...Typography.label,
-    color: Palette.night.scriptureGold,
-    letterSpacing: 1.2,
-  },
-  prayerText: {
-    fontFamily: Typography.scriptureItalicFamily,
-    fontSize: 22,
-    lineHeight: 30,
-    color: Palette.night.text,
-    textAlign: 'center',
-  },
-  cycleCount: {
-    ...Typography.secondary,
-    color: Palette.night.textSecondary,
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
-  contentStage: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingBottom: Spacing.xxl,
-    gap: Spacing.lg,
-  },
-  heading: { color: Palette.night.text },
-  subtext: { ...Typography.body, color: Palette.night.textSecondary },
-  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingTop: Spacing.xs },
-  offRampCard: {
-    backgroundColor: Palette.night.surface,
-    borderRadius: Radius.group,
-    padding: Spacing.lg,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.night.border,
-    gap: Spacing.sm,
-  },
-  offRampText: {
-    fontFamily: Typography.scriptureFamily,
-    fontSize: 20,
-    lineHeight: 28,
-    color: Palette.night.text,
-  },
-  forkButtons: { gap: Spacing.md, marginTop: Spacing.sm },
-});
