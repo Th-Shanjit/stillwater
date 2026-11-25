@@ -1,3 +1,18 @@
+
+import {
+  acceptPreparationSuggestion,
+  getPreparationAvoidList,
+} from '../../db/preparationFeedback';
+
+import { getPreparationWindows } from '../../db/preparationWindows';
+import { findPreparationWindow } from '../../content/preparationWindows';
+
+import { getPersonalCompass } from '../../db/personalCompass';
+
+import {
+  getDailyPreparation,
+} from '../../content/dailyPreparation';
+
 import {
   useCallback, useEffect, useRef, useState,
 } from 'react';
@@ -13,7 +28,6 @@ import {
   getClarityGrid,
   getPreferences,
   getActiveBoundaries,
-  addCustomBoundary,
 } from '../../db/queries';
 
 import type { BoundaryItem } from '../../db/queries';
@@ -37,8 +51,6 @@ import { StillwaterV2 } from '../../theme/stillwaterV2';
 const mode = 'day' as const;
 const p = StillwaterV2.day;
 
-const suggestedPlan =
-  'Charge my phone outside the bedroom tonight.';
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -51,6 +63,10 @@ export default function TodayScreen() {
 
   const [boundaries, setBoundaries] =
     useState<BoundaryItem[]>([]);
+
+  const [preparation, setPreparation] = useState(
+    () => getDailyPreparation(null)
+  );
 
   const [morningDone, setMorningDone] = useState(false);
   const [showPrayer, setShowPrayer] = useState(false);
@@ -77,16 +93,26 @@ export default function TodayScreen() {
 
   const load = useCallback(async () => {
     setError('');
+    setReady(false);
 
     try {
       const prefs = await getPreferences();
 
-      const [activity, nextAnchor, plans] =
+      const [activity, nextAnchor, plans, compass, windows, avoided] =
         await Promise.all([
           getClarityGrid(30),
           getSmartMorningAnchor(prefs.tone_track),
           getActiveBoundaries(),
+          getPersonalCompass().catch(() => null),
+          getPreparationWindows().catch(() => []),
+          getPreparationAvoidList().catch(() => []),
         ]);
+
+      setPreparation(getDailyPreparation(
+        compass,
+        findPreparationWindow(windows, new Date()),
+        avoided
+      ));
 
       setAnchor(nextAnchor);
       setBoundaries(plans);
@@ -122,10 +148,9 @@ export default function TodayScreen() {
     try {
       const current = await getActiveBoundaries();
 
-      if (!current.some(item =>
-        item.label === suggestedPlan
-      )) {
-        await addCustomBoundary(suggestedPlan);
+      // Do not overwrite or duplicate an active plan.
+      if (current.length === 0) {
+        await acceptPreparationSuggestion(preparation);
       }
 
       await load();
@@ -379,17 +404,25 @@ export default function TodayScreen() {
       ) : (
         <V2Card mode={mode}>
           <Feather
-            name="moon"
+            name={preparation.icon}
             size={23}
             color={p.muted}
           />
 
           <V2Text mode={mode} variant="section">
-            Prepare for tonight.
+            {preparation.title}
           </V2Text>
 
           <V2Text mode={mode} muted>
-            {suggestedPlan}
+            {preparation.plan}
+          </V2Text>
+
+          <V2Text
+            mode={mode}
+            muted
+            variant="secondary"
+          >
+            {preparation.reason}
           </V2Text>
 
           <V2Button

@@ -1,3 +1,5 @@
+import { FEEDBACK_SCHEMA } from '../content/preparationFeedback';
+import { WINDOW_SCHEMA } from '../content/preparationWindows';
 import { RECOVERY_EVENT_SCHEMA } from '../content/recoveryEvents';
 import * as SQLite from 'expo-sqlite';
 
@@ -109,6 +111,8 @@ export async function initDatabase(): Promise<void> {
   `);
 
   await db.execAsync(RECOVERY_EVENT_SCHEMA);
+  await db.execAsync(WINDOW_SCHEMA);
+  await db.execAsync(FEEDBACK_SCHEMA);
 
   await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
   await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN last_opened_at TEXT;`);

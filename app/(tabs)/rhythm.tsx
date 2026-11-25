@@ -1,3 +1,6 @@
+import { PreparationFeedback } from '../../components/PreparationFeedback';
+import { PreparationWindows } from '../../components/PreparationWindows';
+import { PersonalCompass } from '../../components/PersonalCompass';
 import { StillwaterActivity } from '../../components/StillwaterActivity';
 import { useCallback, useState } from 'react';
 import {
@@ -24,14 +27,12 @@ import {
   getActiveBoundaries,
   getAllIfThenPlans,
   getPreferences,
-  getWeatherMapInsights,
   IfThenPlan,
   resolveBoundary,
   ToneTrack,
   updateIfThenPlan,
   updatePreferences,
   UserPreferences,
-  WeatherMapInsights,
 } from '../../db/queries';
 import { requestNotificationPermission, scheduleDailyRhythms, hasDailyRhythms, cancelDailyRhythms } from '../../db/notifications';
 import {
@@ -55,7 +56,6 @@ export default function RhythmScreen() {
   const [remindersOn, setRemindersOn] = useState(false);
   const [reminderBusy, setReminderBusy] = useState(false);
   const { inset, isNarrow } = useScreenInset();
-  const [insights, setInsights] = useState<WeatherMapInsights | null>(null);
   const [boundaries, setBoundaries] = useState<BoundaryItem[]>([]);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [plans, setPlans] = useState<IfThenPlan[]>([]);
@@ -69,13 +69,11 @@ export default function RhythmScreen() {
   const [editingPlanText, setEditingPlanText] = useState('');
 
   const loadAll = useCallback(async () => {
-    const [w, b, p, pl] = await Promise.all([
-      getWeatherMapInsights(),
+    const [b, p, pl] = await Promise.all([
       getActiveBoundaries(),
       getPreferences(),
       getAllIfThenPlans(),
     ]);
-    setInsights(w);
     setBoundaries(b);
     setPrefs(p);
     setPlans(pl);
@@ -239,6 +237,8 @@ export default function RhythmScreen() {
 
         <StillwaterActivity />
 
+        <PreparationFeedback />
+
         {/* 1. Active 24-Hour Boundaries (Custody of the Senses) */}
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Active 24-hour boundaries</Text>
@@ -298,39 +298,9 @@ export default function RhythmScreen() {
           </View>
         </View>
 
-        {/* 2. Weather Map Insights (30-Day Local Analytics) */}
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>Weather map (30 days)</Text>
-          <View style={styles.card}>
-            {insights?.hasEnoughData ? (
-              <>
-                <View style={styles.metricRow}>
-                  <Text style={styles.rowLabel}>Most recorded events</Text>
-                  <Text style={styles.rowValue}>{insights.peakWindowLabel}</Text>
-                </View>
+        <PersonalCompass />
 
-                <View style={styles.divider} />
-
-                <View style={styles.metricRow}>
-                  <Text style={styles.rowLabel}>Most common recorded tag</Text>
-                  <Text style={styles.rowValue}>
-                    {insights.topEmotionTag ?? 'Still observing'}
-                  </Text>
-                </View>
-
-                <Text style={styles.bodyMuted}>
-                  Based on {insights.totalEventsLast30d} recorded
-                  pauses and returns. These observations do not
-                  predict setbacks.
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.bodyMuted}>
-                After three recorded pauses or returns, a preliminary activity summary will appear here.
-              </Text>
-            )}
-          </View>
-        </View>
+        <PreparationWindows />
 
         {/* 3. Trusted Ally Quick-Ping (Zero Spyware, Ordinary Human Contact) */}
         <View style={styles.sectionBlock}>
