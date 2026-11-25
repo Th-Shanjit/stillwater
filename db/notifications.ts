@@ -20,6 +20,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('quiet-rhythms', {
       name: 'Daily Reflections',
+      // eslint-disable-next-line import/namespace -- Documented Expo SDK 58 export.
       importance: Notifications.AndroidImportance.DEFAULT,
       sound: null,
     });

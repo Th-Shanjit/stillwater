@@ -125,11 +125,13 @@ export async function enablePreparationReminder(
       CHANNEL_ID,
       {
         name: 'Quiet reminders',
+        // eslint-disable-next-line import/namespace -- Documented Expo SDK 58 export.
         importance: Notifications.AndroidImportance.LOW,
         sound: null,
         enableVibrate: false,
         showBadge: false,
         lockscreenVisibility:
+          // eslint-disable-next-line import/namespace -- Documented Expo SDK 58 export.
           Notifications.AndroidNotificationVisibility.PRIVATE,
       }
     );

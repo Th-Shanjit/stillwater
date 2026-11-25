@@ -4,14 +4,8 @@ import { getDb } from './schema';
 
 import {
   recoveryEventValues,
-} from '../content/recoveryEvents';
-
-import {
   RECOVERY_EVENT_INSERT,
-} from '../content/recoveryEvents';
-
-import type {
-  RecoveryEvent,
+  type RecoveryEvent,
 } from '../content/recoveryEvents';
 
 export function newRecoverySessionId(): string {

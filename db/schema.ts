@@ -1,3 +1,5 @@
+import { ADD_SANCTUARY_APPEARANCE_SQL } from '../content/sanctuaryAppearance';
+import { SANCTUARY_SCHEMA } from '../content/sanctuaryGrowth';
 import { FEEDBACK_SCHEMA } from '../content/preparationFeedback';
 import { WINDOW_SCHEMA } from '../content/preparationWindows';
 import { RECOVERY_EVENT_SCHEMA } from '../content/recoveryEvents';
@@ -113,6 +115,20 @@ export async function initDatabase(): Promise<void> {
   await db.execAsync(RECOVERY_EVENT_SCHEMA);
   await db.execAsync(WINDOW_SCHEMA);
   await db.execAsync(FEEDBACK_SCHEMA);
+  await db.execAsync(SANCTUARY_SCHEMA);
+
+  const sanctuaryColumns =
+    await db.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(sanctuary_state);'
+    );
+
+  if (!sanctuaryColumns.some(
+    column => column.name === 'appearance'
+  )) {
+    await db.execAsync(
+      ADD_SANCTUARY_APPEARANCE_SQL
+    );
+  }
 
   await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
   await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN last_opened_at TEXT;`);

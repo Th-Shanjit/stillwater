@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { CompassTimeChart } from './CompassTimeChart';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useIsFocused } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
 import { getPersonalCompass } from '../db/personalCompass';
@@ -21,14 +22,15 @@ const mode = 'day' as const;
 const p = StillwaterV2.day;
 
 export function PersonalCompass() {
+  const focused = useIsFocused();
   const [data, setData] =
     useState<PersonalCompassSummary | null>(null);
 
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+      if (!focused) return;
       let active = true;
 
       getPersonalCompass()
@@ -45,8 +47,7 @@ export function PersonalCompass() {
       return () => {
         active = false;
       };
-    }, [retry])
-  );
+    }, [focused, retry]);
 
   return (
     <View style={{ gap: 12 }}>
@@ -137,66 +138,12 @@ export function PersonalCompass() {
               When you seek support
             </V2Text>
 
+            {data.pauseCount > 0 && (
+              <CompassTimeChart data={data} />
+            )}
+
             {data.timePattern ? (
               <>
-                <View style={{ gap: 9 }}>
-                  {data.timeBuckets.map(item => {
-                    const max = Math.max(
-                      1,
-                      ...data.timeBuckets.map(
-                        bucket => bucket.count
-                      )
-                    );
-
-                    return (
-                      <View
-                        key={item.key}
-                        accessible
-                        accessibilityLabel={
-                          item.label + ': ' +
-                          item.count + ' recorded pauses'
-                        }
-                        style={{ gap: 4 }}
-                      >
-                        <View style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                        }}>
-                          <V2Text
-                            mode={mode}
-                            muted
-                            variant="secondary"
-                          >
-                            {item.label}
-                          </V2Text>
-
-                          <V2Text
-                            mode={mode}
-                            variant="secondary"
-                          >
-                            {item.count}
-                          </V2Text>
-                        </View>
-
-                        <View style={{
-                          height: 7,
-                          borderRadius: 4,
-                          backgroundColor: p.secondary,
-                          overflow: 'hidden',
-                        }}>
-                          <View style={{
-                            height: 7,
-                            borderRadius: 4,
-                            backgroundColor: p.primary,
-                            width:
-                              (item.count / max * 100) + '%',
-                          }} />
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-
                 <V2Card mode={mode} tonal>
                   <V2Text
                     mode={mode}

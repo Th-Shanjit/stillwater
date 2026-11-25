@@ -1,3 +1,4 @@
+import { STILLWATER_ROUTES } from '../../content/stillwaterRoutes';
 
 import {
   acceptPreparationSuggestion,
@@ -135,7 +136,7 @@ export default function TodayScreen() {
   );
 
   const openPlan = () => {
-    router.push('/(tabs)/rhythm');
+    router.push(STILLWATER_ROUTES.plans);
   };
 
   const savePlan = async () => {
@@ -207,8 +208,10 @@ export default function TodayScreen() {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open plans and settings"
-          onPress={openPlan}
+          accessibilityLabel="Open settings"
+          onPress={() =>
+            router.push(STILLWATER_ROUTES.settings)
+          }
           style={{
             minWidth: 48,
             minHeight: 48,
