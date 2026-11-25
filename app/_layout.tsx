@@ -122,6 +122,13 @@ export default function RootLayout() {
         <Stack.Screen name="plans" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="sanctuary" />
+        <Stack.Screen name="programme-preview" />
+        <Stack.Screen name="programmes" />
+        <Stack.Screen name="shared" />
+        <Stack.Screen name="circles" />
+        <Stack.Screen name="host" />
+        <Stack.Screen name="publishers" />
+        <Stack.Screen name="plus" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
         <Stack.Screen name="pause" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
         <Stack.Screen name="grace-reset" options={{ presentation: 'modal' }} />

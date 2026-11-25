@@ -1,0 +1,23 @@
+{
+  "id": "little_room",
+  "version": 1,
+  "title": "A little room to breathe",
+  "description": "A quiet moment, wherever you are.",
+  "steps": [
+    {
+      "title": "Arrive as you are",
+      "text": "Set aside whatever can wait for a little while. You do not need to accomplish anything in this moment.",
+      "optional": false
+    },
+    {
+      "title": "Make a little space",
+      "text": "Relax your shoulders. Let your breathing settle naturally. Notice something ordinary around you.",
+      "optional": false
+    },
+    {
+      "title": "A quiet prayer",
+      "text": "Lord, help me receive this moment with gratitude, and carry a little peace into what comes next.",
+      "optional": true
+    }
+  ]
+}

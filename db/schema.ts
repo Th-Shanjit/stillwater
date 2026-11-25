@@ -1,3 +1,5 @@
+import { PARTICIPATION_SCHEMA } from '../content/programmeParticipation';
+import { ENROLLMENT_SCHEMA } from '../content/programmeEnrollment';
 import { ADD_SANCTUARY_APPEARANCE_SQL } from '../content/sanctuaryAppearance';
 import { SANCTUARY_SCHEMA } from '../content/sanctuaryGrowth';
 import { FEEDBACK_SCHEMA } from '../content/preparationFeedback';
@@ -116,6 +118,8 @@ export async function initDatabase(): Promise<void> {
   await db.execAsync(WINDOW_SCHEMA);
   await db.execAsync(FEEDBACK_SCHEMA);
   await db.execAsync(SANCTUARY_SCHEMA);
+  await db.execAsync(ENROLLMENT_SCHEMA);
+  await db.execAsync(PARTICIPATION_SCHEMA);
 
   const sanctuaryColumns =
     await db.getAllAsync<{ name: string }>(

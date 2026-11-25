@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="A quiet moment from Stillwater.">
+<meta name="theme-color" content="#F6F3EB">
+<meta property="og:title" content="A little space from Stillwater">
+<meta property="og:description" content="Small moments of stillness and intentional living.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>A moment from Stillwater</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#F6F3EB;color:#19332E;
+font:17px/1.6 system-ui,sans-serif}
+main{max-width:520px;margin:auto;padding:24px 20px 44px}
+.brand{font:28px Georgia,serif;color:#193B35}
+.art{width:100%;display:block;border-radius:20px;margin:24px 0}
+.eyebrow{font-size:12px;letter-spacing:1.5px;color:#48645A}
+h1{font:36px/1.15 Georgia,serif;margin:16px 0}
+p{margin:12px 0 20px}
+small{display:block;color:#48645A;margin:16px 0}
+button,a.cta{display:block;width:100%;font:600 16px system-ui;
+padding:16px;border:1px solid #193B35;border-radius:12px;
+background:#193B35;color:white;text-decoration:none;
+text-align:center;cursor:pointer;margin:10px 0;min-height:52px}
+.secondary{background:transparent!important;color:#193B35!important}
+.card{background:#FFFCF6;border:1px solid #C9D3C6;
+border-radius:16px;padding:16px;margin:12px 0}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid #B88A50;outline-offset:3px}
+</style>
+</head>
+<body>
+<main>
+<div class="brand">stillwater.</div>
+<svg class="art" viewBox="0 0 340 160" aria-hidden="true">
+<rect width="340" height="160" fill="#DCE6D9"/>
+<circle cx="245" cy="39" r="22" fill="#D6B47D"/>
+<path d="M0 90 Q60 12 143 82 T340 60 V160 H0Z" fill="#ABC0AE"/>
+<path d="M0 110 Q65 48 180 100 T340 90 V160 H0Z" fill="#779A8B"/>
+<path d="M0 126 Q80 99 180 121 T340 114 V160 H0Z" fill="#193B35"/>
+<path d="M212 135 H268 M194 145 H286" stroke="#D6B47D" opacity=".6"/>
+</svg>
+<div class="eyebrow" id="label">STILLWATER</div>
+<h1 id="title" tabindex="-1">A little room to breathe</h1>
+<p id="body" aria-live="polite"></p>
+<div id="days"></div>
+<small id="status"></small>
+<button id="next" hidden>Continue when ready</button>
+<button id="skip" class="secondary" hidden>Skip prayer</button>
+<button id="back" class="secondary" hidden>Previous step</button>
+<a id="open" class="cta secondary" hidden>Open Stillwater</a>
+<small id="note"></small>
+<noscript>Please enable JavaScript to use this guided experience.</noscript>
+</main>
+<script type="application/json" id="content">{"moment":{"id":"little_room","version":1,"title":"A little room to breathe","description":"A quiet moment, wherever you are.","steps":[{"title":"Arrive as you are","text":"Set aside whatever can wait for a little while. You do not need to accomplish anything in this moment.","optional":false},{"title":"Make a little space","text":"Relax your shoulders. Let your breathing settle naturally. Notice something ordinary around you.","optional":false},{"title":"A quiet prayer","text":"Lord, help me receive this moment with gratitude, and carry a little peace into what comes next.","optional":true}]},"walk":{"id":"three_quiet_evenings","version":1,"title":"Three Quiet Evenings","description":"Make room for stillness through small, intentional changes to your evening.","days":[{"title":"Make space","description":"Create a quiet moment away from the screen."},{"title":"Reconnect","description":"Make room for ordinary human connection."},{"title":"Carry it forward","description":"Choose a sustainable evening rhythm."}]}}</script>
+<script>
+(function(){
+  const data=JSON.parse(document.getElementById('content').textContent);
+  const el=id=>document.getElementById(id);
+  const q=new URLSearchParams(location.hash.slice(1));
+
+  const valid=q.size===3 &&
+    ['kind','id','v'].every(k=>q.getAll(k).length===1);
+
+  const kind=q.get('kind');
+  const id=q.get('id');
+  const v=q.get('v');
+
+  let index=0;
+
+  function appLink(kind,id,version){
+    return 'stillwater://shared?kind='+kind+
+      '&id='+encodeURIComponent(id)+'&v='+version;
+  }
+
+  function renderMoment(){
+    const step=data.moment.steps[index];
+
+    el('label').textContent='A MOMENT FROM STILLWATER';
+    el('title').textContent=step
+      ?step.title:'Carry a little peace with you.';
+    el('body').textContent=step
+      ?step.text:'You can return to your day now.';
+    el('status').textContent=step
+      ?'Step '+(index+1)+' of '+data.moment.steps.length:'';
+    el('next').hidden=!step;
+    el('skip').hidden=!step||!step.optional;
+    el('back').hidden=index===0;
+    el('open').hidden=Boolean(step);
+    el('open').href=appLink('moment',data.moment.id,data.moment.version);
+    el('note').textContent=step
+      ?'Take this at your own pace.'
+      :'If Stillwater is installed, you can open it here.';
+  }
+
+  function advance(){
+    index=Math.min(data.moment.steps.length,index+1);
+    renderMoment();
+    el('title').focus();
+  }
+
+  if(q.size===1&&q.getAll('circle').length===1&&
+    /^[a-f0-9]{64}$/.test(q.get('circle')||'')){
+    const code=q.get('circle');
+    el('label').textContent='STILLWATER CIRCLES';
+    el('title').textContent='A little better, together.';
+    el('body').textContent='Someone has invited you to participate in a private Stillwater Circle.';
+    el('open').href='stillwater://circles?invite='+code;
+    el('open').hidden=false;
+    el('note').textContent='Open Stillwater if installed. Joining is voluntary. Alternatively, enter the invitation code inside Circles.';
+    const card=document.createElement('p');
+    card.className='card';
+    card.style.overflowWrap='anywhere';
+    card.textContent=code;
+    el('days').append(card);
+  }else if(!location.hash||(valid&&kind==='moment'&&
+    id===data.moment.id&&v===String(data.moment.version))){
+    el('next').onclick=advance;
+    el('skip').onclick=advance;
+    el('back').onclick=()=>{
+      index=Math.max(0,index-1);
+      renderMoment();
+      el('title').focus();
+    };
+    renderMoment();
+  }else if(valid&&kind==='walk'&&id===data.walk.id&&
+    v===String(data.walk.version)){
+    el('label').textContent='WALK WITH ME';
+    el('title').textContent=data.walk.title;
+    el('body').textContent=data.walk.description;
+    el('status').textContent='Free · Self-paced · '+data.walk.days.length+' sessions';
+    data.walk.days.forEach((day,i)=>{
+      const card=document.createElement('div');
+      card.className='card';
+      const heading=document.createElement('strong');
+      heading.textContent=(i+1)+'. '+day.title;
+      const description=document.createElement('p');
+      description.textContent=day.description;
+      card.append(heading,description);
+      el('days').append(card);
+    });
+    el('open').href=appLink('walk',id,v);
+    el('open').hidden=false;
+    el('note').textContent='Open Stillwater if installed to join independently. Your progress is not shared.';
+  }else{
+    el('title').textContent='This invitation is unavailable.';
+    el('body').textContent='The link may be invalid or refer to an unavailable edition.';
+  }
+})();
+</script>
+</body>
+</html>

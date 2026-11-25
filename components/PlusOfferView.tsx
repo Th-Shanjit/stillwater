@@ -1,27 +1,34 @@
-import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { Feather } from '@expo/vector-icons';
-import { PurchasesPackage } from 'react-native-purchases';
-import { Palette, Radius, Sizes, Spacing, Typography } from '../theme/tokens';
+import { OFFER_DISCLOSURES } from '../content/offerPolicy';
+
+import { useEffect, useRef, useState } from 'react';
+import { Linking, View } from 'react-native';
+
 import {
   activateGraceScholarship,
-  AvailablePlans,
   getAvailablePlans,
+  getPlusAccess,
   openNativeOfferCodeRedemption,
+  storeOffersEnabled,
+  openSubscriptionManagement,
   purchasePlan,
   restoreStillwaterPurchases,
+  type AvailablePlans,
 } from '../db/entitlements';
-import { PrimaryButton, SecondaryButton, StillwaterMark } from './RoyalUI';
 
-type PlanChoice = 'annual' | 'monthly' | 'lifetime';
+import {
+  FREE_BENEFITS,
+  PLUS_BENEFITS,
+  validLegalUrl,
+  type PlusAccess,
+  type PlanChoice,
+} from '../content/membershipPolicy';
+
+import {
+  V2Text,
+  V2Card,
+  V2Button,
+  V2Artwork,
+} from './StillwaterUI';
 
 interface PlusOfferViewProps {
   eyebrow?: string;
@@ -31,394 +38,502 @@ interface PlusOfferViewProps {
   onContinueFree: () => void;
 }
 
-const BENEFITS = [
-  'Full 30-Day Root-Cause Recovery Path (Weeks 1–4)',
-  'Additional guided rescue practices',
+const mode = 'day' as const;
+
+const privacyUrl =
+  process.env.EXPO_PUBLIC_PRIVACY_URL;
+
+const termsUrl =
+  process.env.EXPO_PUBLIC_TERMS_URL;
+
+const legalReady =
+  validLegalUrl(privacyUrl) &&
+  validLegalUrl(termsUrl);
+
+const EMPTY_PLANS: AvailablePlans = {
+  annual: null,
+  monthly: null,
+  lifetime: null,
+  isLiveStore: false,
+};
+
+const CHOICES: {
+  id: PlanChoice;
+  title: string;
+  subtitle: string;
+}[] = [
+  {
+    id: 'annual',
+    title: 'Annual',
+    subtitle: 'Billed annually',
+  },
+  {
+    id: 'monthly',
+    title: 'Monthly',
+    subtitle: 'Billed monthly',
+  },
+  {
+    id: 'lifetime',
+    title: 'Lifetime',
+    subtitle: 'One-time purchase of core Plus access',
+  },
 ];
+
+function accessLabel(access: PlusAccess): string {
+  switch (access.source) {
+    case 'store_subscription':
+      return 'Active store membership';
+    case 'store_no_expiry':
+      return 'Store access without an expiry date';
+    case 'scholarship':
+      return 'Grace Scholarship';
+    case 'development':
+      return 'Development preview';
+    case 'free':
+      return 'Free membership';
+    default:
+      return 'Store access could not be checked';
+  }
+}
+
+async function readMembership() {
+  const [access, plans] = await Promise.all([
+    getPlusAccess(),
+    getAvailablePlans(),
+  ]);
+
+  return { access, plans };
+}
 
 export function PlusOfferView({
   eyebrow = 'STILLWATER PLUS',
-  headline = 'Go deeper in the daylight.',
+  headline = 'Go a little deeper.',
   freeActionLabel = 'Continue free',
   onUnlocked,
   onContinueFree,
 }: PlusOfferViewProps) {
-  const [plans, setPlans] = useState<AvailablePlans>({
-    annual: null,
-    monthly: null,
-    lifetime: null,
-    isLiveStore: false,
-  });
-  const [loadingPlans, setLoadingPlans] = useState(true);
-  const [selected, setSelected] = useState<PlanChoice>('annual');
-  const [busy, setBusy] = useState(false);
-  const [showScholarship, setShowScholarship] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [plans, setPlans] =
+    useState<AvailablePlans>(EMPTY_PLANS);
+
+  const [access, setAccess] =
+    useState<PlusAccess | null>(null);
+
+  const [selected, setSelected] =
+    useState<PlanChoice>('annual');
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [busy, setBusy] =
+    useState(false);
+
+  const [feedback, setFeedback] =
+    useState('');
+
+  const [scholarship, setScholarship] =
+    useState(false);
+
+  const lock = useRef(false);
 
   useEffect(() => {
-    getAvailablePlans()
-      .then((available) => {
-        setPlans(available);
-        if (available.annual) setSelected('annual');
-        else if (available.monthly) setSelected('monthly');
-        else if (available.lifetime) setSelected('lifetime');
+    let active = true;
+
+    readMembership()
+      .then(result => {
+        if (!active) return;
+
+        setAccess(result.access);
+        setPlans(result.plans);
+
+        setSelected(
+          result.plans.annual
+            ? 'annual'
+            : result.plans.monthly
+              ? 'monthly'
+              : 'lifetime'
+        );
       })
-      .catch(() => setFeedback('Store plans are unavailable right now.'))
-      .finally(() => setLoadingPlans(false));
+      .catch(() => {
+        if (active) {
+          setFeedback(
+            'Unable to retrieve membership information.'
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const annualPrice = plans.annual?.product.priceString ?? null;
-  const monthlyPrice = plans.monthly?.product.priceString ?? null;
-  const lifetimePrice = plans.lifetime?.product.priceString ?? null;
+  const perform = async (
+    action: () => Promise<void>
+  ) => {
+    if (lock.current) return;
 
-  const activePackage: PurchasesPackage | null =
-    selected === 'annual'
-      ? plans.annual
-      : selected === 'monthly'
-        ? plans.monthly
-        : plans.lifetime;
-
-  const ctaLabel = !activePackage
-    ? 'Store plan unavailable'
-    : selected === 'annual'
-      ? 'Continue annually'
-      : selected === 'monthly'
-        ? 'Continue monthly'
-        : 'Unlock lifetime';
-
-  const handleSubscribe = async () => {
-    if (busy) return;
-    setFeedback(null);
+    lock.current = true;
     setBusy(true);
+    setFeedback('');
 
     try {
-      if (!activePackage) {
-        setFeedback('Store plans are still syncing. Please try again in a moment.');
-        return;
-      }
-
-      const result = await purchasePlan(activePackage);
-      if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        onUnlocked();
-      } else if (!result.cancelled) {
-        setFeedback(result.error ?? 'Plus access could not be verified. Try restoring purchases.');
-      }
+      await action();
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : 'Unable to complete this request.'
+      );
     } finally {
+      lock.current = false;
       setBusy(false);
     }
   };
 
-  const handleRestore = async () => {
-    if (busy) return;
-    setFeedback(null);
-    setBusy(true);
-    try {
-      const res = await restoreStillwaterPurchases();
-      if (res.restored) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        onUnlocked();
-      } else {
-        setFeedback(res.error ?? 'No active Stillwater Plus subscription found on this account.');
-      }
-    } finally {
-      setBusy(false);
-    }
+  const refresh = async () => {
+    const result = await readMembership();
+
+    setAccess(result.access);
+    setPlans(result.plans);
+
+    setSelected(previous =>
+      result.plans[previous]
+        ? previous
+        : result.plans.annual
+          ? 'annual'
+          : result.plans.monthly
+            ? 'monthly'
+            : 'lifetime'
+    );
   };
 
-  const handleRedeemCode = async () => {
-    setFeedback(null);
-    try {
-      await openNativeOfferCodeRedemption();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unable to open offer code sheet.';
-      Alert.alert('Church Offer Code', msg);
-    }
+  const activePackage = plans[selected];
+
+  const availableChoices = CHOICES.filter(
+    choice => Boolean(plans[choice.id])
+  );
+
+  const close = () => {
+    if (!lock.current) onContinueFree();
   };
 
-  const handleActivateScholarship = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await activateGraceScholarship();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      onUnlocked();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (showScholarship) {
+  if (scholarship) {
     return (
-      <View style={styles.block}>
-        <Text style={styles.eyebrow}>THE GRACE PROMISE</Text>
-        <Text style={styles.headline}>No one turned away for money.</Text>
-        <Text style={styles.body}>
-          If a paid membership is out of reach right now—whether you are a student, between jobs, or carrying a heavy season—activate a full 1-year Grace Scholarship right here. No forms, no tracking, no questions asked.
-        </Text>
+      <View style={{ gap: 16 }}>
+        <V2Artwork mode={mode}
+          kind="growth" height={140} />
 
-        <View style={styles.callout}>
-          <Text style={styles.calloutText}>
-            Your scholarship unlocks the available Plus modules and guided practices on this device for 12 months.
-          </Text>
-        </View>
+        <V2Text mode={mode} variant="display">
+          The Grace Scholarship
+        </V2Text>
 
-        <PrimaryButton
-          label={busy ? 'Activating...' : 'Activate 1-year Grace Scholarship'}
-          onPress={handleActivateScholarship}
+        <V2Text mode={mode}>
+          If paid access is out of reach, you can activate
+          one year of core Plus access on this device.
+        </V2Text>
+
+        <V2Text mode={mode} muted>
+          This local hardship pass is not a store purchase.
+          It does not require payment or automatically
+          create a subscription.
+        </V2Text>
+
+        <V2Button mode={mode}
+          label="Activate 1-year scholarship"
+          disabled={busy || loading}
+          onPress={() => void perform(async () => {
+            await activateGraceScholarship();
+            onUnlocked();
+          })} />
+
+        <V2Button mode={mode} tone="quiet"
+          label="Back to membership"
           disabled={busy}
-        />
-        <SecondaryButton
-          label="Back to plans"
-          onPress={() => setShowScholarship(false)}
-          disabled={busy}
-        />
+          onPress={() => setScholarship(false)} />
+
+        {feedback !== '' && (
+          <V2Text mode={mode}>{feedback}</V2Text>
+        )}
       </View>
     );
   }
 
   return (
-    <View style={styles.block}>
-      <View style={styles.brandRow}>
-        <StillwaterMark size={22} color={Palette.light.scripture} />
-        <Text style={styles.eyebrow}>{eyebrow}</Text>
-      </View>
+    <View style={{ gap: 16 }}>
+      <V2Artwork mode={mode}
+        kind="water" height={150} />
 
-      <Text style={styles.headline}>{headline}</Text>
-      <Text style={styles.body}>
-        The Pause, Grace Reset, Evening Examen and Week 1 are free. Plus unlocks additional practices. Personal privacy is not a paid feature.
-      </Text>
+      <V2Text mode={mode} muted variant="label">
+        {eyebrow}
+      </V2Text>
 
-      {/* Benefits Card */}
-      <View style={styles.groupedCard}>
-        {BENEFITS.map((item, idx) => (
-          <View key={item}>
-            {idx > 0 && <View style={styles.divider} />}
-            <View style={styles.benefitRow}>
-              <Feather name="check" size={18} color={Palette.light.success} />
-              <Text style={styles.benefitText}>{item}</Text>
-            </View>
-          </View>
+      <V2Text mode={mode} variant="display">
+        {headline}
+      </V2Text>
+
+      <V2Text mode={mode} muted>
+        Essential support and privacy remain free.
+        Plus offers additional structured content.
+      </V2Text>
+
+      <V2Card mode={mode} tonal>
+        <V2Text mode={mode} variant="section">
+          Your membership
+        </V2Text>
+
+        <V2Text mode={mode}>
+          {loading
+            ? 'Checking membership...'
+            : access
+              ? accessLabel(access)
+              : 'Membership unavailable'}
+        </V2Text>
+
+        {access?.expiresAt && (
+          <V2Text mode={mode} muted variant="secondary">
+            Current access period ends {
+              new Date(access.expiresAt).toLocaleDateString()
+            }
+          </V2Text>
+        )}
+
+        <V2Button mode={mode} tone="quiet"
+          icon="refresh-cw" label="Refresh membership"
+          disabled={loading || busy}
+          onPress={() => void perform(refresh)} />
+      </V2Card>
+
+      <V2Card mode={mode}>
+        <V2Text mode={mode} variant="section">
+          Included in Plus
+        </V2Text>
+
+        {PLUS_BENEFITS.map(item => (
+          <V2Text key={item} mode={mode}>
+            {'✓ ' + item}
+          </V2Text>
         ))}
-      </View>
 
-      {/* Plan Selector */}
-      {loadingPlans ? (
-        <View style={styles.loaderBox}>
-          <ActivityIndicator color={Palette.light.primary} />
-        </View>
-      ) : (
-        <View style={styles.planList}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: selected === 'annual' }}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              setSelected('annual');
-            }}
-            style={[styles.planCard, selected === 'annual' && styles.planCardActive]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <View style={styles.planTitleRow}>
-                <Text style={styles.planTitle}>Annual</Text>
-              </View>
-              <Text style={styles.planSub}>Annual subscription</Text>
-            </View>
-            <Text style={styles.planPrice}>{annualPrice ? annualPrice + '/yr' : 'Unavailable'}</Text>
-          </Pressable>
+        <V2Text mode={mode} muted variant="secondary">
+          Guided practices currently use text where
+          recordings are not yet available.
+        </V2Text>
+      </V2Card>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: selected === 'monthly' }}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              setSelected('monthly');
-            }}
-            style={[styles.planCard, selected === 'monthly' && styles.planCardActive]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.planTitle}>Monthly</Text>
-              <Text style={styles.planSub}>Flexible month-to-month support</Text>
-            </View>
-            <Text style={styles.planPrice}>{monthlyPrice ? monthlyPrice + '/mo' : 'Unavailable'}</Text>
-          </Pressable>
+      {!access?.active && !loading && (
+        <>
+          {availableChoices.map(choice => {
+            const pkg = plans[choice.id];
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: selected === 'lifetime' }}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              setSelected('lifetime');
-            }}
-            style={[styles.planCard, selected === 'lifetime' && styles.planCardActive]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.planTitle}>Lifetime</Text>
-              <Text style={styles.planSub}>One-time purchase of core Plus access</Text>
-            </View>
-            <Text style={styles.planPrice}>{lifetimePrice ?? 'Unavailable'}</Text>
-          </Pressable>
-        </View>
+            if (!pkg) return null;
+
+            return (
+              <V2Card key={choice.id}
+                mode={mode}
+                tonal={selected === choice.id}>
+
+                <V2Text mode={mode} variant="section">
+                  {choice.title}
+                </V2Text>
+
+                <V2Text mode={mode} variant="heading">
+                  {pkg.product.priceString}
+                </V2Text>
+
+                <V2Text mode={mode}
+                  muted variant="secondary">
+                  {choice.subtitle}
+                </V2Text>
+
+                <V2Button mode={mode}
+                  tone={selected === choice.id
+                    ? 'primary'
+                    : 'secondary'}
+                  icon={selected === choice.id
+                    ? 'check'
+                    : undefined}
+                  label={selected === choice.id
+                    ? 'Selected'
+                    : 'Select ' + choice.title.toLowerCase()}
+                  disabled={busy}
+                  onPress={() =>
+                    setSelected(choice.id)
+                  } />
+              </V2Card>
+            );
+          })}
+
+          {availableChoices.length === 0 && (
+            <V2Text mode={mode} muted>
+              Store plans are currently unavailable.
+              Your free features remain accessible.
+            </V2Text>
+          )}
+
+          {!legalReady && (
+            <V2Text mode={mode}
+              muted variant="secondary">
+              Purchases are unavailable until the privacy
+              policy and terms are configured.
+            </V2Text>
+          )}
+
+          <V2Button mode={mode}
+            label={busy
+              ? 'Connecting...'
+              : activePackage
+                ? 'Continue · ' + activePackage.product.priceString
+                : 'Store plan unavailable'}
+            disabled={
+              busy || loading || !activePackage ||
+              !legalReady || access?.source === 'unavailable'
+            }
+            onPress={() => void perform(async () => {
+              if (!activePackage || !legalReady) return;
+
+              const result = await purchasePlan(
+                activePackage
+              );
+
+              if (result.success) {
+                onUnlocked();
+              } else if (!result.cancelled) {
+                setFeedback(
+                  result.error ??
+                  'Plus access has not been confirmed. Restore purchases before retrying.'
+                );
+              }
+            })} />
+
+          <V2Text mode={mode} muted variant="secondary">
+            {selected === 'lifetime'
+              ? 'One-time purchase of core local Plus features. Separately licensed content and future hosted services may be offered separately.'
+              : 'Subscriptions renew automatically unless cancelled. The store shows the final price, renewal terms and any eligible offer before confirmation.'}
+          </V2Text>
+        </>
       )}
 
-      {feedback && (
-        <View style={styles.feedbackBox}>
-          <Text style={styles.feedbackText}>{feedback}</Text>
-        </View>
+      {feedback !== '' && (
+        <V2Card mode={mode}>
+          <V2Text mode={mode}>{feedback}</V2Text>
+        </V2Card>
       )}
 
-      <View style={styles.ctaGroup}>
-        <PrimaryButton
-          label={busy ? 'Connecting to store...' : ctaLabel}
-          onPress={handleSubscribe}
-          disabled={busy || loadingPlans || !activePackage}
-        />
-        <SecondaryButton
-          label={freeActionLabel}
-          onPress={onContinueFree}
+      <V2Button mode={mode} tone="secondary"
+        label={access?.active
+          ? 'Continue'
+          : freeActionLabel}
+        disabled={busy}
+        onPress={close} />
+
+      <V2Button mode={mode} tone="quiet"
+        label="Restore purchases"
+        disabled={busy || loading}
+        onPress={() => void perform(async () => {
+          const result = await restoreStillwaterPurchases();
+
+          if (result.restored) {
+            onUnlocked();
+          } else {
+            setFeedback(
+              result.error ??
+              'No active purchased Plus access was found.'
+            );
+          }
+        })} />
+
+      <V2Button mode={mode} tone="quiet"
+        label="Manage store subscription"
+        disabled={busy || loading}
+        onPress={() => void perform(
+          openSubscriptionManagement
+        )} />
+
+      <V2Card mode={mode}>
+        <V2Text mode={mode} variant="section">
+          Received an access offer?
+        </V2Text>
+
+        <V2Text mode={mode} muted>
+          Redeem an eligible promotional or partner
+          offer through your original app store.
+        </V2Text>
+
+        {storeOffersEnabled() ? (
+          <>
+            {OFFER_DISCLOSURES.map(item => (
+              <V2Text key={item} mode={mode}
+                muted variant="secondary">
+                {item}
+              </V2Text>
+            ))}
+
+            <V2Button mode={mode}
+              tone="secondary"
+              icon="gift"
+              label="Redeem store offer"
+              disabled={busy || loading}
+              onPress={() => void perform(async () => {
+                await openNativeOfferCodeRedemption();
+
+                setFeedback(
+                  'After redeeming your offer, refresh membership or restore purchases to confirm access.'
+                );
+              })} />
+
+            <V2Button mode={mode}
+              tone="quiet"
+              label="Check membership after redemption"
+              disabled={busy || loading}
+              onPress={() => void perform(refresh)} />
+          </>
+        ) : (
+          <V2Text mode={mode}
+            muted variant="secondary">
+            Promotional and partner offers are not
+            currently enabled for this build.
+          </V2Text>
+        )}
+      </V2Card>
+
+      {!access?.active && (
+        <V2Button mode={mode} tone="quiet"
+          label="Cannot afford Plus? Grace Scholarship"
+          disabled={busy || loading}
+          onPress={() => setScholarship(true)} />
+      )}
+
+      <V2Card mode={mode}>
+        <V2Text mode={mode} variant="section">
+          Always free
+        </V2Text>
+
+        {FREE_BENEFITS.map(item => (
+          <V2Text key={item} mode={mode} muted>
+            {'✓ ' + item}
+          </V2Text>
+        ))}
+      </V2Card>
+
+      {validLegalUrl(privacyUrl) && privacyUrl && (
+        <V2Button mode={mode} tone="quiet"
+          label="Privacy policy"
           disabled={busy}
-        />
-      </View>
+          onPress={() => void perform(async () => {
+            await Linking.openURL(privacyUrl);
+          })} />
+      )}
 
-      {/* Transparent Renewal Disclosure + Restore / Church Code / Scholarship */}
-      <Text style={styles.legalNote}>
-        {selected === 'lifetime'
-          ? 'One-time purchase billed through your App Store or Google Play account.'
-          : 'Subscriptions renew automatically unless canceled. Review the final price, renewal terms and any eligible introductory offer in the store before confirming.'}
-      </Text>
-
-      <View style={styles.footerLinks}>
-        <Pressable onPress={handleRestore} hitSlop={8} style={styles.footerBtn}>
-          <Text style={styles.footerLink}>Restore purchases</Text>
-        </Pressable>
-        <Text style={styles.footerDot}>·</Text>
-        <Pressable onPress={handleRedeemCode} hitSlop={8} style={styles.footerBtn}>
-          <Text style={styles.footerLink}>Church offer code</Text>
-        </Pressable>
-      </View>
-
-      <Pressable
-        onPress={() => setShowScholarship(true)}
-        hitSlop={8}
-        style={styles.scholarshipBtn}
-      >
-        <Text style={styles.scholarshipLink}>
-          Cannot afford Plus right now? Request a free Grace Scholarship
-        </Text>
-      </Pressable>
+      {validLegalUrl(termsUrl) && termsUrl && (
+        <V2Button mode={mode} tone="quiet"
+          label="Terms of use"
+          disabled={busy}
+          onPress={() => void perform(async () => {
+            await Linking.openURL(termsUrl);
+          })} />
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  block: { gap: Spacing.md },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  eyebrow: { ...Typography.label, color: Palette.light.scripture },
-  headline: { ...Typography.display, fontSize: 30, lineHeight: 36, color: Palette.light.text },
-  body: { ...Typography.body, fontSize: 15, lineHeight: 22, color: Palette.light.textSecondary },
-  groupedCard: {
-    backgroundColor: Palette.light.surface,
-    borderRadius: Radius.group,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    paddingHorizontal: Spacing.lg,
-  },
-  benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: 13,
-  },
-  benefitText: { ...Typography.body, fontSize: 14, lineHeight: 20, color: Palette.light.text, flex: 1 },
-  divider: { height: Sizes.borderWidth, backgroundColor: Palette.light.border },
-  loaderBox: { paddingVertical: Spacing.xl, alignItems: 'center' },
-  planList: { gap: Spacing.sm },
-  planCard: {
-    minHeight: 68,
-    backgroundColor: Palette.light.surface,
-    borderRadius: Radius.standard,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  planCardActive: {
-    borderWidth: 2,
-    borderColor: Palette.light.primary,
-    backgroundColor: Palette.light.primaryTonal,
-  },
-  planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  planTitle: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 16,
-    fontWeight: '700',
-    color: Palette.light.text,
-  },
-  planSub: { ...Typography.secondary, fontSize: 12, color: Palette.light.textSecondary },
-  planPrice: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 15,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-    color: Palette.light.text,
-  },
-  badge: {
-    backgroundColor: Palette.light.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgeText: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 11,
-    fontWeight: '700',
-    color: Palette.light.onPrimary,
-  },
-  callout: {
-    backgroundColor: Palette.light.scriptureTonal,
-    borderRadius: Radius.standard,
-    padding: Spacing.lg,
-  },
-  calloutText: { ...Typography.body, fontSize: 15, color: Palette.light.scripture },
-  feedbackBox: {
-    backgroundColor: Palette.light.supportBackground,
-    borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.supportBorder,
-    borderRadius: Radius.standard,
-    padding: Spacing.md,
-  },
-  feedbackText: { ...Typography.secondary, color: Palette.light.support },
-  ctaGroup: { gap: Spacing.sm, marginTop: Spacing.xs },
-  legalNote: {
-    ...Typography.secondary,
-    fontSize: 12,
-    lineHeight: 17,
-    color: Palette.light.textSecondary,
-    textAlign: 'center',
-  },
-  footerLinks: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  footerBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  footerLink: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 13,
-    fontWeight: '600',
-    color: Palette.light.primary,
-  },
-  footerDot: { color: Palette.light.textSecondary },
-  scholarshipBtn: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
-  scholarshipLink: {
-    fontFamily: Typography.sansFamily,
-    fontSize: 13,
-    fontWeight: '600',
-    color: Palette.light.scripture,
-    textAlign: 'center',
-  },
-});

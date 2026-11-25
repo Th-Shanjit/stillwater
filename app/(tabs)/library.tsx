@@ -1,3 +1,7 @@
+import { permitsContent } from '../../content/membershipPolicy';
+import { ProgrammeEntry } from '../../components/ProgrammeEntry';
+import { V2Button } from '../../components/StillwaterUI';
+import { STILLWATER_ROUTES } from '../../content/stillwaterRoutes';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Modal,
@@ -99,22 +103,39 @@ export default function LibraryScreen() {
     return Object.values(grouped);
   }, []);
 
-  const handleOpenDay = (day: PathDay) => {
-    Haptics.selectionAsync().catch(() => {});
-    if (day.tier === 'plus' && !isPlus) {
+
+  const canOpenContent = async (
+    tier: 'free' | 'plus'
+  ) => {
+    if (tier === 'free') return true;
+
+    const plus = await hasStillwaterPlus()
+      .catch(() => false);
+
+    setIsPlus(plus);
+
+    if (!permitsContent(tier, plus)) {
       setShowPlusSheet(true);
-      return;
+      return false;
     }
-    setActiveDay(day);
+
+    return true;
   };
 
-  const handleOpenAudio = (track: RescueAudioTrack) => {
+  const handleOpenDay = async (day: PathDay) => {
     Haptics.selectionAsync().catch(() => {});
-    if (track.tier === 'plus' && !isPlus) {
-      setShowPlusSheet(true);
-      return;
+
+    if (await canOpenContent(day.tier)) {
+      setActiveDay(day);
     }
-    setActiveAudio(track);
+  };
+
+  const handleOpenAudio = async (track: RescueAudioTrack) => {
+    Haptics.selectionAsync().catch(() => {});
+
+    if (await canOpenContent(track.tier)) {
+      setActiveAudio(track);
+    }
   };
 
   const handleToggleComplete = async (dayNum: number) => {
@@ -145,6 +166,20 @@ export default function LibraryScreen() {
             Journey
           </Text>
         </View>
+
+        {__DEV__ && (
+          <V2Button
+            mode="day"
+            tone="secondary"
+            icon="play-circle"
+            label="Preview programme player"
+            onPress={() =>
+              router.push(STILLWATER_ROUTES.programmePreview)
+            }
+          />
+        )}
+
+        <ProgrammeEntry />
 
         {/* Featured Liturgical Violet Card: 30-Day Path Progress */}
         <View style={styles.featuredCard}>

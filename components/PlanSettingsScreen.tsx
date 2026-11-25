@@ -1,3 +1,4 @@
+import { STILLWATER_ROUTES } from '../content/stillwaterRoutes';
 import { PreparationFeedback } from './PreparationFeedback';
 import { PreparationWindows } from './PreparationWindows';
 import { useCallback, useRef, useState } from 'react';
@@ -542,6 +543,24 @@ export function PlanSettingsScreen({
         </>
       ) : (
         <>
+        <V2Card mode={mode}>
+          <V2Text mode={mode} variant="section">
+            Membership
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            View Plus plans, restore purchases,
+            or manage your existing membership.
+          </V2Text>
+
+          <V2Button mode={mode}
+            tone="secondary"
+            label="Stillwater membership"
+            onPress={() =>
+              router.push(STILLWATER_ROUTES.plus)
+            } />
+        </V2Card>
+
         {/* 5. Care & Preferences */}
         {prefs && (
           <View style={styles.sectionBlock}>

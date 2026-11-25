@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "three_quiet_evenings",
+  "version": 1,
+  "title": "Three Quiet Evenings",
+  "description": "Make room for stillness through small, intentional changes to your evening.",
+  "language": "en",
+  "tradition": "Christian",
+  "publisher": {
+    "id": "stillwater",
+    "name": "Stillwater",
+    "kind": "stillwater"
+  },
+  "audience": "general",
+  "access": "free",
+  "schedule": "self_paced",
+  "days": [
+    {
+      "id": "make_space",
+      "title": "Make space",
+      "description": "Create a quiet moment away from the screen.",
+      "steps": [
+        {
+          "id": "space_guidance",
+          "kind": "guidance",
+          "title": "Arrive as you are",
+          "text": "You do not need to finish everything before taking a moment to rest.",
+          "suggestedSeconds": 20,
+          "optional": false
+        },
+        {
+          "id": "space_action",
+          "kind": "action",
+          "title": "Make a little room",
+          "text": "Choose somewhere nearby to put your phone while you take a short break.",
+          "suggestedSeconds": 30,
+          "optional": false
+        },
+        {
+          "id": "space_prayer",
+          "kind": "prayer",
+          "title": "A quiet prayer",
+          "text": "Lord, help me welcome this moment of rest with gratitude.",
+          "suggestedSeconds": 20,
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "reconnect",
+      "title": "Reconnect",
+      "description": "Make room for ordinary human connection.",
+      "steps": [
+        {
+          "id": "connection_guidance",
+          "kind": "guidance",
+          "title": "Look beyond the screen",
+          "text": "Consider one person whose company you appreciate.",
+          "suggestedSeconds": 20,
+          "optional": false
+        },
+        {
+          "id": "connection_action",
+          "kind": "action",
+          "title": "Make a small connection",
+          "text": "Choose a time to call, message or spend a few minutes with that person.",
+          "suggestedSeconds": 30,
+          "optional": false
+        },
+        {
+          "id": "connection_reflection",
+          "kind": "reflection",
+          "title": "Notice what matters",
+          "text": "What kind of connection would you like to make more room for?",
+          "suggestedSeconds": 30,
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "carry_forward",
+      "title": "Carry it forward",
+      "description": "Choose a sustainable evening rhythm.",
+      "steps": [
+        {
+          "id": "rhythm_guidance",
+          "kind": "guidance",
+          "title": "Small beginnings",
+          "text": "A useful daily rhythm can begin with one ordinary decision.",
+          "suggestedSeconds": 20,
+          "optional": false
+        },
+        {
+          "id": "rhythm_action",
+          "kind": "action",
+          "title": "Choose your next step",
+          "text": "Choose one small evening practice that you would like to continue.",
+          "suggestedSeconds": 30,
+          "optional": false
+        },
+        {
+          "id": "rhythm_prayer",
+          "kind": "prayer",
+          "title": "Carry this into tomorrow",
+          "text": "Lord, give me patience and wisdom in the small choices ahead.",
+          "suggestedSeconds": 20,
+          "optional": true
+        }
+      ]
+    }
+  ]
+}
