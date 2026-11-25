@@ -1,6 +1,11 @@
+import { useGlobalSearchParams, type Href } from 'expo-router';
+import { invitationDestination } from '../content/onboardingInvitation';
+import { applyPendingPrivateReset } from '../db/privateDataReset';
+import * as ScreenCapture from 'expo-screen-capture';
+import { PrivacyCoverContext } from '../components/PrivacyCover';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -17,16 +22,28 @@ import { PrimaryButton, StillwaterMark } from '../components/RoyalUI';
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const globalParams = useGlobalSearchParams();
   const navState = useRootNavigationState();
 
   const [dbReady, setDbReady] = useState(false);
+
+  const [startupError, setStartupError] =
+    useState(false);
+
+  const [bootAttempt, setBootAttempt] =
+    useState(0);
+
+  const [backgroundCovered, setBackgroundCovered] =
+    useState(false);
+
+  const resumeEpoch = useRef(0);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const onboardingRedirected = useRef(false);
   const [isLocked, setIsLocked] = useState(false);
   const appStateRef = useRef(AppState.currentState);
   const authInProgress = useRef(false);
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Newsreader_400Regular,
     Newsreader_400Regular_Italic,
   });
@@ -39,7 +56,12 @@ export default function RootLayout() {
         promptMessage: 'Unlock Stillwater',
         fallbackLabel: 'Use Passcode',
       });
-      if (result.success) {
+      if (
+        result.success &&
+        AppState.currentState === 'active'
+      ) {
+        resumeEpoch.current += 1;
+        setBackgroundCovered(false);
         setIsLocked(false);
       }
     } catch {
@@ -49,43 +71,138 @@ export default function RootLayout() {
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      await initDatabase();
-      // Configure RevenueCat non-blockingly so cold boot stays instant
-      initEntitlements().catch(() => {});
-      const prefs = await getPreferences();
-      setNeedsOnboarding(!prefs.onboarding_completed);
-      if (prefs.biometric_lock) {
-        setIsLocked(true);
-      }
-      setDbReady(true);
-    })();
-  }, []);
 
+  // Startup must fail visibly rather than remain
+  // on an indefinite loading screen.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', async (nextState) => {
-      if (appStateRef.current?.match(/inactive|background/) && nextState === 'active') {
+    let active = true;
+
+    const boot = async () => {
+      try {
+        // Android release builds prevent screen capture
+        // and normally suppress recent-app previews.
+        // Development builds retain screenshot capability
+        // for interface testing.
+        if (
+          Platform.OS === 'android' &&
+          !__DEV__
+        ) {
+          await ScreenCapture.preventScreenCaptureAsync(
+            'stillwater-private'
+          );
+        }
+
+        if (Platform.OS === 'ios') {
+          await ScreenCapture
+            .enableAppSwitcherProtectionAsync(1);
+        }
+
+        await initDatabase();
+        await applyPendingPrivateReset();
+
         const prefs = await getPreferences();
-        if (prefs.biometric_lock) {
-          setIsLocked(true);
+
+        if (!active) return;
+
+        setNeedsOnboarding(
+          !prefs.onboarding_completed
+        );
+
+        setIsLocked(
+          Boolean(prefs.biometric_lock)
+        );
+
+        setBackgroundCovered(
+          AppState.currentState === 'background' ||
+          AppState.currentState === 'inactive'
+        );
+
+        initEntitlements().catch(() => {});
+
+        setStartupError(false);
+        setDbReady(true);
+
+      } catch {
+        if (active) {
+          setStartupError(true);
+          setDbReady(false);
         }
       }
-      appStateRef.current = nextState;
-    });
-    return () => sub.remove();
+    };
+
+    void boot();
+
+    return () => {
+      active = false;
+    };
+  }, [bootAttempt]);
+
+  // Cover the interface before an asynchronous
+  // preference lookup occurs on resume.
+  useEffect(() => {
+    const sub = AppState.addEventListener(
+      'change',
+      nextState => {
+        const previous = appStateRef.current;
+
+        appStateRef.current = nextState;
+
+        const epoch = ++resumeEpoch.current;
+
+        if (
+          nextState === 'background' ||
+          nextState === 'inactive'
+        ) {
+          setBackgroundCovered(true);
+          return;
+        }
+
+        if (
+          nextState !== 'active' ||
+          previous === 'active'
+        ) {
+          return;
+        }
+
+        setBackgroundCovered(true);
+
+        void (async () => {
+          try {
+            const prefs = await getPreferences();
+
+            if (epoch !== resumeEpoch.current) {
+              return;
+            }
+
+            if (prefs.biometric_lock) {
+              setIsLocked(true);
+            }
+
+          } catch {
+            if (epoch !== resumeEpoch.current) {
+              return;
+            }
+
+            // Fail closed if privacy preferences
+            // cannot be retrieved.
+            setIsLocked(true);
+          } finally {
+            if (epoch === resumeEpoch.current) {
+              setBackgroundCovered(false);
+            }
+          }
+        })();
+      }
+    );
+
+    return () => {
+      resumeEpoch.current += 1;
+      sub.remove();
+    };
   }, []);
 
-  useEffect(() => {
-    if (isLocked && dbReady && fontsLoaded) {
-      // Defer the native prompt until after rendering.
-      const timer = setTimeout(() => {
-        void promptUnlock();
-      }, 0);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isLocked, dbReady, fontsLoaded, promptUnlock]);
+  // Authentication is explicit. Do not automatically
+  // relaunch a cancelled native authentication prompt.
 
   useEffect(() => {
     if (!navState?.key || !dbReady || !fontsLoaded) return;
@@ -94,10 +211,61 @@ export default function RootLayout() {
       onboardingRedirected.current = true;
 
       if (!inOnboarding) {
-        router.replace('/onboarding');
+        const destination = invitationDestination(
+          segments[0],
+          globalParams
+        );
+
+        if (destination) {
+          router.replace(
+            ('/onboarding?next=' +
+              encodeURIComponent(destination)) as Href
+          );
+        } else {
+          router.replace('/onboarding');
+        }
       }
     }
-  }, [navState?.key, dbReady, fontsLoaded, needsOnboarding, segments, router]);
+  }, [navState?.key, dbReady, fontsLoaded, needsOnboarding, segments, router, globalParams]);
+
+  if (startupError || fontError) {
+    return (
+      <View style={[
+        styles.center,
+        { padding: 24, gap: 16 },
+      ]}>
+        <StillwaterMark
+          size={38}
+          color={Palette.light.scripture}
+        />
+
+        <Text style={styles.lockBrand}>
+          Unable to open Stillwater
+        </Text>
+
+        <Text style={styles.lockSub}>
+          Your existing records have not been reset.
+          Try opening the app again.
+        </Text>
+
+        {!fontError && (
+          <PrimaryButton
+            label="Try again"
+            onPress={() => {
+              setStartupError(false);
+              setBootAttempt(value => value + 1);
+            }}
+          />
+        )}
+
+        {fontError && (
+          <Text style={styles.lockSub}>
+            Close and reopen the application.
+          </Text>
+        )}
+      </View>
+    );
+  }
 
   if (!dbReady || !fontsLoaded) {
     return (
@@ -107,16 +275,33 @@ export default function RootLayout() {
     );
   }
 
+  const covered =
+    isLocked || backgroundCovered;
+
   return (
     <View style={{ flex: 1 }}>
       <StatusBar
         style={
-          !isLocked &&
+          !covered &&
           ['pause', 'examen'].includes(String(segments[0]))
             ? 'light'
             : 'dark'
         }
       />
+      <PrivacyCoverContext.Provider value={covered}>
+        <View
+          style={{
+            flex: 1,
+            opacity: covered ? 0 : 1,
+          }}
+          pointerEvents={covered ? 'none' : 'auto'}
+          accessibilityElementsHidden={covered}
+          importantForAccessibility={
+            covered
+              ? 'no-hide-descendants'
+              : 'auto'
+          }
+        >
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="plans" />
@@ -129,22 +314,38 @@ export default function RootLayout() {
         <Stack.Screen name="host" />
         <Stack.Screen name="publishers" />
         <Stack.Screen name="plus" />
+        <Stack.Screen name="privacy-data" options={{ gestureEnabled: false }} />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
-        <Stack.Screen name="pause" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
-        <Stack.Screen name="grace-reset" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="examen" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+        <Stack.Screen name="pause" options={{ presentation: 'card', animation: 'fade' }} />
+        <Stack.Screen name="grace-reset" options={{ presentation: 'card' }} />
+        <Stack.Screen name="examen" options={{ presentation: 'card', animation: 'fade' }} />
       </Stack>
+        </View>
+      </PrivacyCoverContext.Provider>
 
-      {isLocked && (
-        <View style={styles.lockOverlay}>
+      {covered && (
+        <View
+          style={styles.lockOverlay}
+          accessibilityViewIsModal
+        >
           <StillwaterMark size={38} color={Palette.light.scripture} />
           <Text style={styles.lockBrand}>stillwater.</Text>
-          <Text style={styles.lockSub}>Unlock to continue.</Text>
-          <PrimaryButton
-            label="Unlock"
-            onPress={promptUnlock}
-            style={{ maxWidth: 240, marginTop: Spacing.md }}
-          />
+          <Text style={styles.lockSub}>
+            {backgroundCovered
+              ? 'Your private space.'
+              : 'Unlock to continue.'}
+          </Text>
+
+          {!backgroundCovered && isLocked && (
+            <PrimaryButton
+              label="Unlock"
+              onPress={promptUnlock}
+              style={{
+                maxWidth: 240,
+                marginTop: Spacing.md,
+              }}
+            />
+          )}
         </View>
       )}
     </View>

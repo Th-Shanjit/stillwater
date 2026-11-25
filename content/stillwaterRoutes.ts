@@ -10,6 +10,7 @@ export const STILLWATER_ROUTES = {
   circles: '/circles' as Href,
   host: '/host' as Href,
   plus: '/plus' as Href,
+  privacyData: '/privacy-data' as Href,
   publishers: '/publishers' as Href,
   publisherProfile: (id: string): Href =>
     ('/publishers?id=' + encodeURIComponent(id)) as Href,

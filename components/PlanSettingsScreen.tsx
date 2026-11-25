@@ -561,6 +561,25 @@ export function PlanSettingsScreen({
             } />
         </V2Card>
 
+        <V2Card mode={mode}>
+          <V2Text mode={mode} variant="section">
+            Private data management
+          </V2Text>
+
+          <V2Text mode={mode} muted>
+            Control and remove your locally stored
+            personal records.
+          </V2Text>
+
+          <V2Button mode={mode}
+            tone="secondary"
+            icon="shield"
+            label="Manage private data"
+            onPress={() =>
+              router.push(STILLWATER_ROUTES.privacyData)
+            } />
+        </V2Card>
+
         {/* 5. Care & Preferences */}
         {prefs && (
           <View style={styles.sectionBlock}>

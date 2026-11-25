@@ -1,3 +1,5 @@
+import type { Href } from 'expo-router';
+import { safeOnboardingDestination } from '../content/onboardingInvitation';
 import { useRef, useState } from 'react';
 import {
   Alert, Pressable, Switch, View,
@@ -41,6 +43,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     preview?: string;
+    next?: string;
   }>();
 
   const preview =
@@ -137,7 +140,7 @@ export default function OnboardingScreen() {
           } else {
             Alert.alert(
               'Reminders not enabled',
-              'You can enable them later in Progress.'
+              'You can enable them later in Settings.'
             );
           }
         } catch {
@@ -148,7 +151,9 @@ export default function OnboardingScreen() {
         }
       }
 
-      router.replace('/(tabs)');
+      router.replace(
+        safeOnboardingDestination(params.next) as Href
+      );
 
     } catch {
       setError(

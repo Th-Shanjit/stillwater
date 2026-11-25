@@ -112,3 +112,12 @@ Immediate support:
 Do not treat placeholder content as final production copy.
 Review language, theological suitability, accessibility
 and unwanted reassurance patterns before launch.
+
+
+## Phase 10 consolidated inventory
+
+See PART10_RECORDING_INVENTORY.md for the prioritised
+recording production queue.
+
+No recording is approved merely because its source
+text has passed automated validation.

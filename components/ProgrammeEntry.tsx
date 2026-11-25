@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import {
@@ -13,6 +14,7 @@ import {
 
 export function ProgrammeEntry() {
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <V2Card mode="day">
@@ -43,6 +45,16 @@ export function ProgrammeEntry() {
           router.push(STILLWATER_ROUTES.programmes)
         }
       />
+      <V2Button mode="day" tone="quiet"
+        icon={expanded ? 'chevron-up' : 'chevron-down'}
+        label={expanded
+          ? 'Hide community tools'
+          : 'Sharing and community'}
+        onPress={() => setExpanded(value => !value)}
+      />
+
+      {expanded && (
+        <>
       <V2Button mode="day" tone="secondary"
         icon="gift" label="Share something good"
         onPress={() =>
@@ -64,6 +76,8 @@ export function ProgrammeEntry() {
         onPress={() =>
           router.push(STILLWATER_ROUTES.publishers)
         } />
+        </>
+      )}
     </V2Card>
   );
 }

@@ -8,15 +8,28 @@ import { RECOVERY_EVENT_SCHEMA } from '../content/recoveryEvents';
 import * as SQLite from 'expo-sqlite';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+let dbOpening: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!dbInstance) {
-    dbInstance = await SQLite.openDatabaseAsync('stillwater_local.db');
+export async function getDb():
+  Promise<SQLite.SQLiteDatabase> {
+  if (dbInstance) return dbInstance;
+
+  if (!dbOpening) {
+    dbOpening = SQLite
+      .openDatabaseAsync('stillwater_local.db')
+      .then(db => {
+        dbInstance = db;
+        return db;
+      })
+      .finally(() => {
+        dbOpening = null;
+      });
   }
-  return dbInstance;
+
+  return dbOpening;
 }
 
-const DEFAULT_OFF_RAMPS: Record<string, string> = {
+export const DEFAULT_OFF_RAMPS: Record<string, string> = {
   exhausted: 'Set your phone across the room, drink a glass of water, and turn out the lamp.',
   lonely: 'Send one ordinary text to a friend—not to confess, just to stay connected to real life.',
   stressed: 'Step away from the screen for five minutes and rinse your face with cold water.',
@@ -26,11 +39,18 @@ const DEFAULT_OFF_RAMPS: Record<string, string> = {
   autopilot: 'Lock the screen right now and set the phone face-down in another room for 15 minutes.',
 };
 
-async function safeAlter(db: SQLite.SQLiteDatabase, sql: string) {
-  try {
+async function ensurePreferenceColumn(
+  db: SQLite.SQLiteDatabase,
+  name: string,
+  sql: string
+): Promise<void> {
+  const columns =
+    await db.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(user_preferences);'
+    );
+
+  if (!columns.some(column => column.name === name)) {
     await db.execAsync(sql);
-  } catch {
-    // Column already exists
   }
 }
 
@@ -39,6 +59,7 @@ export async function initDatabase(): Promise<void> {
 
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
+    PRAGMA secure_delete = ON;
 
     CREATE TABLE IF NOT EXISTS user_preferences (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -134,10 +155,10 @@ export async function initDatabase(): Promise<void> {
     );
   }
 
-  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
-  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN last_opened_at TEXT;`);
-  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN trusted_ally_name TEXT;`);
-  await safeAlter(db, `ALTER TABLE user_preferences ADD COLUMN trusted_ally_phone TEXT;`);
+  await ensurePreferenceColumn(db, 'onboarding_completed', `ALTER TABLE user_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
+  await ensurePreferenceColumn(db, 'last_opened_at', `ALTER TABLE user_preferences ADD COLUMN last_opened_at TEXT;`);
+  await ensurePreferenceColumn(db, 'trusted_ally_name', `ALTER TABLE user_preferences ADD COLUMN trusted_ally_name TEXT;`);
+  await ensurePreferenceColumn(db, 'trusted_ally_phone', `ALTER TABLE user_preferences ADD COLUMN trusted_ally_phone TEXT;`);
 
   const nowIso = new Date().toISOString();
   await db.runAsync(

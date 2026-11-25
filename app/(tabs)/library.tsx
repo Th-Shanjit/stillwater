@@ -1,10 +1,11 @@
+import { StillwaterV2 } from '../../theme/stillwaterV2';
+import { PrivacyModal } from '../../components/PrivacyCover';
 import { permitsContent } from '../../content/membershipPolicy';
 import { ProgrammeEntry } from '../../components/ProgrammeEntry';
-import { V2Button } from '../../components/StillwaterUI';
+import { V2Button, V2Artwork } from '../../components/StillwaterUI';
 import { STILLWATER_ROUTES } from '../../content/stillwaterRoutes';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,14 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
-import { Palette, Radius, Sizes, Spacing, Typography } from '../../theme/tokens';
+import { Radius, Sizes, Spacing, Typography } from '../../theme/tokens';
 import { getCompletedPathDays, togglePathDayComplete } from '../../db/pathQueries';
 import { hasStillwaterPlus, setDevPlusPreview } from '../../db/entitlements';
 import {
   AppHeader,
   PrimaryButton,
   SecondaryButton,
-  StainedGlassArch,
   useScreenInset,
 } from '../../components/RoyalUI';
 import { AudioRescuePlayer, RescueAudioTrack } from '../../components/AudioRescuePlayer';
@@ -179,14 +179,13 @@ export default function LibraryScreen() {
           />
         )}
 
-        <ProgrammeEntry />
 
         {/* Featured Liturgical Violet Card: 30-Day Path Progress */}
         <View style={styles.featuredCard}>
-          <StainedGlassArch />
+          <V2Artwork mode="night" kind="water" height={100} />
           <View style={styles.featuredInner}>
             <Text style={styles.goldEyebrow}>
-              30-DAY ROOT-CAUSE PATH · {completedDays.length} OF 30 COMPLETED
+              30-DAY RECOVERY PATH · {completedDays.length} OF 30 COMPLETED
             </Text>
             <Text style={styles.featuredTitle}>
               Day {nextPathDay.day}: {nextPathDay.title}
@@ -214,7 +213,7 @@ export default function LibraryScreen() {
 
         {/* 1. Eyes-Closed Midnight Rescue Audio */}
         <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>Guided rescue practices</Text>
+          <Text style={styles.sectionTitle}>Guided practices</Text>
           <View style={styles.groupedCard}>
             {AUDIO_TRACKS.map((track, idx) => {
               const locked = track.tier === 'plus' && !isPlus;
@@ -229,7 +228,7 @@ export default function LibraryScreen() {
                     <Feather
                       name={locked ? 'lock' : track.audioUri ? 'headphones' : 'book-open'}
                       size={Sizes.icon}
-                      color={locked ? Palette.light.textSecondary : Palette.light.scripture}
+                      color={locked ? StillwaterV2.day.muted : StillwaterV2.day.primary}
                     />
                     <View style={{ flex: 1 }}>
                       <View style={styles.rowTitleLine}>
@@ -242,7 +241,7 @@ export default function LibraryScreen() {
                       </View>
                       <Text style={styles.rowSub}>{track.subtitle}{track.audioUri ? ' · Audio' : ' · Guided text'}</Text>
                     </View>
-                    <Feather name="chevron-right" size={18} color={Palette.light.textSecondary} />
+                    <Feather name="chevron-right" size={18} color={StillwaterV2.day.muted} />
                   </Pressable>
                 </View>
               );
@@ -288,7 +287,7 @@ export default function LibraryScreen() {
                     <Feather
                       name={isOpen ? 'chevron-up' : 'chevron-down'}
                       size={20}
-                      color={Palette.light.textSecondary}
+                      color={StillwaterV2.day.muted}
                     />
                   </Pressable>
 
@@ -305,9 +304,9 @@ export default function LibraryScreen() {
                           >
                             <View style={[styles.dayBadge, done && styles.dayBadgeDone]}>
                               {done ? (
-                                <Feather name="check" size={14} color={Palette.light.onPrimary} />
+                                <Feather name="check" size={14} color={StillwaterV2.day.onPrimary} />
                               ) : weekLocked ? (
-                                <Feather name="lock" size={13} color={Palette.light.textSecondary} />
+                                <Feather name="lock" size={13} color={StillwaterV2.day.muted} />
                               ) : (
                                 <Text style={styles.dayBadgeText}>{d.day}</Text>
                               )}
@@ -321,7 +320,7 @@ export default function LibraryScreen() {
                             <Feather
                               name="chevron-right"
                               size={18}
-                              color={Palette.light.textSecondary}
+                              color={StillwaterV2.day.muted}
                             />
                           </Pressable>
                         </View>
@@ -332,6 +331,8 @@ export default function LibraryScreen() {
             })}
           </View>
         </View>
+
+        <ProgrammeEntry />
 
         {/* 3. Psalms of Lament */}
         <View style={styles.sectionBlock}>
@@ -348,12 +349,12 @@ export default function LibraryScreen() {
                   accessibilityRole="button"
                   style={({ pressed }) => [styles.rowBtn, pressed && { opacity: 0.72 }]}
                 >
-                  <Feather name="book-open" size={Sizes.icon} color={Palette.light.scripture} />
+                  <Feather name="book-open" size={Sizes.icon} color={StillwaterV2.day.primary} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowTitle}>{item.title}</Text>
                     <Text style={styles.rowSub}>{item.scriptureRef}</Text>
                   </View>
-                  <Feather name="chevron-right" size={18} color={Palette.light.textSecondary} />
+                  <Feather name="chevron-right" size={18} color={StillwaterV2.day.muted} />
                 </Pressable>
               </View>
             ))}
@@ -387,7 +388,7 @@ export default function LibraryScreen() {
       </ScrollView>
 
       {/* Modal 1: 30-Day Path Day Reader */}
-      <Modal
+      <PrivacyModal
         visible={Boolean(activeDay)}
         animationType="slide"
         onRequestClose={() => setActiveDay(null)}
@@ -398,7 +399,7 @@ export default function LibraryScreen() {
               <Text style={styles.eyebrow}>
                 DAY {activeDay.day} · WEEK {activeDay.week}
               </Text>
-              <Pressable onPress={() => setActiveDay(null)} hitSlop={12} style={styles.closeBtn}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close recovery lesson" onPress={() => setActiveDay(null)} hitSlop={12} style={styles.closeBtn}>
                 <Text style={styles.closeText}>Close</Text>
               </Pressable>
             </View>
@@ -412,7 +413,7 @@ export default function LibraryScreen() {
               </Text>
 
               <View style={styles.featuredCard}>
-                <StainedGlassArch />
+                <V2Artwork mode="night" kind="water" height={100} />
                 <View style={styles.featuredInner}>
                   <Text style={styles.goldEyebrow}>{activeDay.scriptureRef.toUpperCase()}</Text>
                   <Text style={styles.scriptureQuote}>“{activeDay.scriptureText}”</Text>
@@ -420,7 +421,7 @@ export default function LibraryScreen() {
               </View>
 
               <View style={styles.lensCallout}>
-                <Text style={styles.lensLabel}>CLINICAL & SPIRITUAL LENS</Text>
+                <Text style={styles.lensLabel}>REFLECTION THEME</Text>
                 <Text style={styles.lensValue}>{activeDay.clinicalLens}</Text>
               </View>
 
@@ -442,10 +443,10 @@ export default function LibraryScreen() {
             </ScrollView>
           </SafeAreaView>
         )}
-      </Modal>
+      </PrivacyModal>
 
       {/* Modal 2: Psalms of Lament Reader */}
-      <Modal
+      <PrivacyModal
         visible={Boolean(activeLament)}
         animationType="slide"
         onRequestClose={() => setActiveLament(null)}
@@ -454,7 +455,7 @@ export default function LibraryScreen() {
           <SafeAreaView style={styles.safe}>
             <View style={[styles.modalTopBar, { paddingHorizontal: inset }]}>
               <Text style={styles.eyebrow}>PSALM OF LAMENT</Text>
-              <Pressable onPress={() => setActiveLament(null)} hitSlop={12} style={styles.closeBtn}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close Psalm of Lament" onPress={() => setActiveLament(null)} hitSlop={12} style={styles.closeBtn}>
                 <Text style={styles.closeText}>Close</Text>
               </Pressable>
             </View>
@@ -468,7 +469,7 @@ export default function LibraryScreen() {
               </Text>
 
               <View style={styles.featuredCard}>
-                <StainedGlassArch />
+                <V2Artwork mode="night" kind="water" height={100} />
                 <View style={styles.featuredInner}>
                   <Text style={styles.goldEyebrow}>{activeLament.scriptureRef.toUpperCase()}</Text>
                   <Text style={styles.scriptureQuote}>“{activeLament.scriptureText}”</Text>
@@ -495,10 +496,10 @@ export default function LibraryScreen() {
             </ScrollView>
           </SafeAreaView>
         )}
-      </Modal>
+      </PrivacyModal>
 
       {/* Modal 3: Eyes-Closed Midnight Rescue Audio Player */}
-      <Modal
+      <PrivacyModal
         visible={Boolean(activeAudio)}
         animationType="fade"
         onRequestClose={() => setActiveAudio(null)}
@@ -507,7 +508,7 @@ export default function LibraryScreen() {
           <SafeAreaView style={styles.nightModalSafe}>
             <View style={[styles.modalTopBar, { paddingHorizontal: inset }]}>
               <Text style={styles.nightEyebrow}>MIDNIGHT RESCUE</Text>
-              <Pressable onPress={() => setActiveAudio(null)} hitSlop={12} style={styles.closeBtn}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close guided practice" onPress={() => setActiveAudio(null)} hitSlop={12} style={styles.closeBtn}>
                 <Text style={styles.nightCloseText}>Close</Text>
               </Pressable>
             </View>
@@ -526,10 +527,10 @@ export default function LibraryScreen() {
             </ScrollView>
           </SafeAreaView>
         )}
-      </Modal>
+      </PrivacyModal>
 
       {/* Modal 4: Live RevenueCat + Grace Scholarship Paywall */}
-      <Modal
+      <PrivacyModal
         visible={showPlusSheet}
         animationType="slide"
         onRequestClose={() => setShowPlusSheet(false)}
@@ -538,6 +539,8 @@ export default function LibraryScreen() {
           <View style={[styles.modalTopBar, { paddingHorizontal: inset }]}>
             <Text style={styles.eyebrow}>STILLWATER PLUS</Text>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close membership"
               onPress={() => setShowPlusSheet(false)}
               hitSlop={12}
               style={styles.closeBtn}
@@ -559,59 +562,59 @@ export default function LibraryScreen() {
             />
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </PrivacyModal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.light.background },
-  nightModalSafe: { flex: 1, backgroundColor: Palette.night.background },
+  safe: { flex: 1, backgroundColor: StillwaterV2.day.background },
+  nightModalSafe: { flex: 1, backgroundColor: StillwaterV2.night.background },
   container: { paddingTop: Spacing.sm, paddingBottom: Spacing.xxl, gap: Spacing.xl },
   headingBlock: { gap: Spacing.xs },
-  eyebrow: { ...Typography.label, color: Palette.light.textSecondary },
-  nightEyebrow: { ...Typography.label, color: Palette.night.textSecondary },
-  title: { color: Palette.light.text },
+  eyebrow: { ...Typography.label, color: StillwaterV2.day.muted },
+  nightEyebrow: { ...Typography.label, color: StillwaterV2.night.muted },
+  title: { color: StillwaterV2.day.text },
   sectionBlock: { gap: Spacing.sm },
-  sectionTitle: { ...Typography.section, color: Palette.light.text },
+  sectionTitle: { ...Typography.section, color: StillwaterV2.day.text },
   featuredCard: {
-    backgroundColor: Palette.light.scripture,
+    backgroundColor: StillwaterV2.day.primary,
     borderRadius: Radius.feature,
     overflow: 'hidden',
     padding: 20,
     minHeight: 185,
   },
   featuredInner: { gap: Spacing.sm, zIndex: 1 },
-  goldEyebrow: { ...Typography.label, color: Palette.light.scriptureGold },
+  goldEyebrow: { ...Typography.label, color: StillwaterV2.night.accent },
   featuredTitle: {
     fontFamily: Typography.sansFamily,
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
-    color: Palette.light.scriptureText,
+    color: StillwaterV2.day.onPrimary,
     maxWidth: '85%',
   },
   featuredSub: {
     ...Typography.secondary,
     fontSize: 14,
-    color: Palette.light.scriptureSecondary,
+    color: StillwaterV2.night.primary,
   },
   featuredBtn: {
     marginTop: Spacing.sm,
     minHeight: Sizes.primaryButtonHeight,
     borderRadius: Radius.standard,
-    backgroundColor: Palette.light.surface,
+    backgroundColor: StillwaterV2.day.surface,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.lg,
   },
-  featuredBtnText: { ...Typography.button, color: Palette.light.scripture },
+  featuredBtnText: { ...Typography.button, color: StillwaterV2.day.primary },
   groupedCard: {
-    backgroundColor: Palette.light.surface,
+    backgroundColor: StillwaterV2.day.surface,
     borderRadius: Radius.group,
     borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
+    borderColor: StillwaterV2.day.border,
     paddingHorizontal: Spacing.lg,
   },
   weekList: { gap: Spacing.md },
@@ -622,12 +625,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.md,
   },
-  weekEyebrow: { ...Typography.label, color: Palette.light.textSecondary },
+  weekEyebrow: { ...Typography.label, color: StillwaterV2.day.muted },
   weekTitle: {
     fontFamily: Typography.sansFamily,
     fontSize: 17,
     fontWeight: '700',
-    color: Palette.light.text,
+    color: StillwaterV2.day.text,
   },
   rowBtn: {
     minHeight: 64,
@@ -646,12 +649,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.sansFamily,
     fontSize: 15,
     fontWeight: '600',
-    color: Palette.light.text,
+    color: StillwaterV2.day.text,
   },
-  rowSub: { ...Typography.secondary, color: Palette.light.textSecondary, marginTop: 2 },
-  divider: { height: Sizes.borderWidth, backgroundColor: Palette.light.border },
+  rowSub: { ...Typography.secondary, color: StillwaterV2.day.muted, marginTop: 2 },
+  divider: { height: Sizes.borderWidth, backgroundColor: StillwaterV2.day.border },
   plusPill: {
-    backgroundColor: Palette.light.scriptureTonal,
+    backgroundColor: StillwaterV2.day.secondary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
@@ -660,10 +663,10 @@ const styles = StyleSheet.create({
     fontFamily: Typography.sansFamily,
     fontSize: 11,
     fontWeight: '700',
-    color: Palette.light.scripture,
+    color: StillwaterV2.day.primary,
   },
   freePill: {
-    backgroundColor: Palette.light.primaryTonal,
+    backgroundColor: StillwaterV2.day.secondary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
@@ -672,44 +675,44 @@ const styles = StyleSheet.create({
     fontFamily: Typography.sansFamily,
     fontSize: 11,
     fontWeight: '700',
-    color: Palette.light.primary,
+    color: StillwaterV2.day.primary,
   },
   dayBadge: {
     width: 30,
     height: 30,
     borderRadius: Radius.small,
-    backgroundColor: Palette.light.background,
+    backgroundColor: StillwaterV2.day.background,
     borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
+    borderColor: StillwaterV2.day.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayBadgeDone: {
-    backgroundColor: Palette.light.success,
-    borderColor: Palette.light.success,
+    backgroundColor: StillwaterV2.day.primary,
+    borderColor: StillwaterV2.day.primary,
   },
   dayBadgeText: {
     fontFamily: Typography.sansFamily,
     fontSize: 12,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
-    color: Palette.light.text,
+    color: StillwaterV2.day.text,
   },
   breathRow: { paddingVertical: Spacing.md, gap: 4 },
   breathLine: {
     fontFamily: Typography.scriptureFamily,
     fontSize: 17,
-    color: Palette.light.scripture,
+    color: StillwaterV2.day.primary,
   },
   devPill: {
     minHeight: Sizes.minTouchTarget,
     borderRadius: Radius.standard,
-    backgroundColor: Palette.light.surfaceSecondary,
+    backgroundColor: StillwaterV2.day.secondary,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.md,
   },
-  devPillText: { ...Typography.label, color: Palette.light.textSecondary },
+  devPillText: { ...Typography.label, color: StillwaterV2.day.muted },
   modalTopBar: {
     minHeight: 54,
     flexDirection: 'row',
@@ -721,43 +724,43 @@ const styles = StyleSheet.create({
     fontFamily: Typography.sansFamily,
     fontSize: 15,
     fontWeight: '600',
-    color: Palette.light.primary,
+    color: StillwaterV2.day.primary,
   },
   nightCloseText: {
     fontFamily: Typography.sansFamily,
     fontSize: 15,
     fontWeight: '600',
-    color: Palette.night.primaryTonalText,
+    color: StillwaterV2.night.primary,
   },
   modalScroll: { paddingBottom: Spacing.xxl, gap: Spacing.lg },
   scriptureQuote: {
     ...Typography.scripture,
-    color: Palette.light.scriptureText,
+    color: StillwaterV2.day.onPrimary,
     maxWidth: '84%',
   },
   lensCallout: {
-    backgroundColor: Palette.light.scriptureTonal,
+    backgroundColor: StillwaterV2.day.secondary,
     borderRadius: Radius.standard,
     padding: Spacing.lg,
     gap: 4,
   },
-  lensLabel: { ...Typography.label, color: Palette.light.scripture },
-  lensValue: { ...Typography.body, fontSize: 15, color: Palette.light.scripture },
-  readerBody: { ...Typography.body, color: Palette.light.text },
+  lensLabel: { ...Typography.label, color: StillwaterV2.day.primary },
+  lensValue: { ...Typography.body, fontSize: 15, color: StillwaterV2.day.primary },
+  readerBody: { ...Typography.body, color: StillwaterV2.day.text },
   practiceCard: {
-    backgroundColor: Palette.light.surface,
+    backgroundColor: StillwaterV2.day.surface,
     borderWidth: Sizes.borderWidth,
-    borderColor: Palette.light.border,
+    borderColor: StillwaterV2.day.border,
     borderRadius: Radius.group,
     padding: Spacing.lg,
     gap: Spacing.xs,
   },
-  practiceText: { ...Typography.body, fontSize: 15, color: Palette.light.text },
+  practiceText: { ...Typography.body, fontSize: 15, color: StillwaterV2.day.text },
   originalPrayerBlock: { gap: Spacing.sm, paddingVertical: Spacing.xs },
   originalPrayerText: {
     fontFamily: Typography.scriptureFamily,
     fontSize: 21,
     lineHeight: 31,
-    color: Palette.light.scripture,
+    color: StillwaterV2.day.primary,
   },
 });
