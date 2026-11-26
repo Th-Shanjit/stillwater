@@ -2,7 +2,7 @@
   {
     "id": "urge_1am",
     "title": "It is 1 AM and the urge is loud",
-    "subtitle": "3-min guided vagal breath & urge surfing",
+    "subtitle": "3-minute grounding and practical support",
     "durationSeconds": 180,
     "tier": "free",
     "audioUri": null,
@@ -36,7 +36,7 @@
   {
     "id": "post_slip_fraud",
     "title": "Starting again after a setback",
-    "subtitle": "4-min shame-spiral breaker & honest lament",
+    "subtitle": "4-minute reflection and a practical next step",
     "durationSeconds": 240,
     "tier": "free",
     "audioUri": null,
@@ -66,7 +66,7 @@
   {
     "id": "lonely_house",
     "title": "Lonely in my own house",
-    "subtitle": "4-min grounding & honest presence prayer",
+    "subtitle": "4-minute practice for loneliness and connection",
     "durationSeconds": 240,
     "tier": "plus",
     "audioUri": null,
@@ -96,7 +96,7 @@
   {
     "id": "eyes_closed_examen",
     "title": "A gentle evening reflection",
-    "subtitle": "5-min guided Ignatian wind-down into sleep",
+    "subtitle": "5-minute optional evening reflection",
     "durationSeconds": 300,
     "tier": "plus",
     "audioUri": null,

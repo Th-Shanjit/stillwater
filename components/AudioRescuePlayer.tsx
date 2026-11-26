@@ -1,10 +1,12 @@
+import { bundledRecording } from '../content/bundledRecordings';
+import { usePrivacyCovered } from './PrivacyCover';
+import { useIsFocused } from 'expo-router';
 import type { RecoveryFlow } from '../content/recoveryEvents';
 import { GuidedPracticePlayer } from './GuidedPracticePlayer';
 import { fromLegacyPractice } from '../content/guidedPractice';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { Palette, Radius, Sizes, Spacing, Typography } from '../theme/tokens';
 import { PrimaryButton } from './RoyalUI';
@@ -41,153 +43,229 @@ function formatClock(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+
 function RecordedAudioPlayer({
   track,
+  source,
   onComplete,
-  completeLabel = 'Put phone down & close',
+  onReadInstead,
+  completeLabel = 'Close practice',
   inProgressLabel = 'Return to options',
   onPlaybackStarted,
-}: AudioRescuePlayerProps) {
-  const hasRealAudio = Boolean(track.audioUri);
-  const audioSource = useMemo(
-    () => (track.audioUri ? { uri: track.audioUri } : null),
-    [track.audioUri]
-  );
-
-  // Expo SDK 58 native audio player hook
-  const player = useAudioPlayer(audioSource);
+}: AudioRescuePlayerProps & {
+  source: number;
+  onReadInstead: () => void;
+}) {
+  const player = useAudioPlayer(source);
   const status = useAudioPlayerStatus(player);
 
+  const covered = usePrivacyCovered();
+  const focused = useIsFocused();
+
+  const [modeReady, setModeReady] =
+    useState(false);
+
+  const [failed, setFailed] =
+    useState(false);
+
+  const [eyesClosedDim, setEyesClosedDim] =
+    useState(false);
+
+  const playbackReported = useRef(false);
+  const operationEpoch = useRef(0);
+  const transportBusy = useRef(false);
+
+  // Configure foreground playback only.
+  // Never publish sensitive track titles to lockscreen
+  // media controls.
   useEffect(() => {
-    if (hasRealAudio && status.playing) {
-      onPlaybackStarted?.();
-    }
-  }, [hasRealAudio, status.playing, onPlaybackStarted]);
+    let mounted = true;
 
-  // Fallback timed-script state when audioUri is null (pre-recording)
-  const [timedRunning, setTimedRunning] = useState(true);
-  const [timedElapsed, setTimedElapsed] = useState(0);
-  const [eyesClosedDim, setEyesClosedDim] = useState(false);
-
-  const lastCueIdxRef = useRef(-1);
-
-  // Enable playback past iOS silent switch and in background when MP3 is present
-  useEffect(() => {
     setAudioModeAsync({
       playsInSilentMode: true,
-      shouldPlayInBackground: true,
-    }).catch(() => {});
-
-    if (hasRealAudio) {
-      try {
-        player.play();
-      } catch {
-        // User can tap Play manually
-      }
-    }
+      shouldPlayInBackground: false,
+    })
+      .then(() => {
+        if (mounted) setModeReady(true);
+      })
+      .catch(() => {
+        if (mounted) setFailed(true);
+      });
 
     return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Privacy and route transitions must pause playback.
+  useEffect(() => {
+    if (covered || !focused) {
+      operationEpoch.current += 1;
+
       try {
         player.pause();
       } catch {
-        // Safe cleanup
+        // Player may already be released.
+      }
+    }
+  }, [covered, focused, player]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener(
+      'change',
+      nextState => {
+        if (nextState !== 'active') {
+          operationEpoch.current += 1;
+
+          try {
+            player.pause();
+          } catch {
+            // Safe cleanup.
+          }
+        }
+      }
+    );
+
+    return () => {
+      operationEpoch.current += 1;
+      sub.remove();
+
+      try {
+        player.pause();
+      } catch {
+        // Safe cleanup.
       }
     };
-  }, [hasRealAudio, player]);
-
-  // Pause fallback text timer if app is backgrounded; real MP3 keeps playing in background
-  useEffect(() => {
-    if (hasRealAudio) return;
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState !== 'active') setTimedRunning(false);
-    });
-    return () => sub.remove();
-  }, [hasRealAudio]);
+  }, [player]);
 
   useEffect(() => {
-    if (hasRealAudio || !timedRunning) return;
-    const interval = setInterval(() => {
-      setTimedElapsed((prev) => {
-        if (prev + 1 >= track.durationSeconds) {
-          clearInterval(interval);
-          setTimedRunning(false);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          return track.durationSeconds;
-        }
-        return prev + 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [hasRealAudio, timedRunning, track.durationSeconds]);
+    if (
+      status.playing &&
+      !playbackReported.current
+    ) {
+      playbackReported.current = true;
+      onPlaybackStarted?.();
+    }
+  }, [status.playing, onPlaybackStarted]);
 
   const totalSeconds =
-    hasRealAudio && status.duration > 0 ? Math.round(status.duration) : track.durationSeconds;
-  const elapsedSeconds = hasRealAudio ? Math.floor(status.currentTime ?? 0) : timedElapsed;
-  const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-  const isPlaying = hasRealAudio ? Boolean(status.playing) : timedRunning;
+    status.duration > 0
+      ? status.duration
+      : track.durationSeconds;
+
+  const elapsedSeconds =
+    status.currentTime ?? 0;
+
+  const remainingSeconds = Math.max(
+    0,
+    totalSeconds - elapsedSeconds
+  );
+
   const isFinished =
-    hasRealAudio ? Boolean(status.didJustFinish) : timedElapsed >= track.durationSeconds;
+    status.didJustFinish ||
+    (
+      status.duration > 0 &&
+      elapsedSeconds >= status.duration - 0.25
+    );
 
-  // Resolve current synced script cue
-  const activeCueIndex = useMemo(() => {
-    let idx = 0;
-    for (let i = 0; i < track.cues.length; i++) {
-      if (elapsedSeconds >= track.cues[i].atSecond) idx = i;
+  let activeCueIndex = 0;
+
+  for (let i = 0; i < track.cues.length; i++) {
+    if (
+      elapsedSeconds >= track.cues[i].atSecond
+    ) {
+      activeCueIndex = i;
     }
-    return idx;
-  }, [elapsedSeconds, track.cues]);
+  }
 
-  useEffect(() => {
-    if (activeCueIndex !== lastCueIdxRef.current && lastCueIdxRef.current !== -1) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft).catch(() => {});
-    }
-    lastCueIdxRef.current = activeCueIndex;
-  }, [activeCueIndex]);
+  const canPlay =
+    modeReady &&
+    status.isLoaded &&
+    !status.error &&
+    !failed &&
+    !covered &&
+    focused;
 
-  const handleTogglePlay = () => {
-    Haptics.selectionAsync().catch(() => {});
-    if (hasRealAudio) {
-      if (isPlaying) {
+  const handleTogglePlay = async () => {
+    if (!canPlay || transportBusy.current) return;
+
+    const epoch = ++operationEpoch.current;
+
+    transportBusy.current = true;
+
+    try {
+      if (status.playing) {
         player.pause();
-      } else {
-        if (isFinished) {
-          Promise.resolve(player.seekTo(0)).catch(() => {});
-        }
-        player.play();
+        return;
       }
-    } else {
+
       if (isFinished) {
-        setTimedElapsed(0);
-        setTimedRunning(true);
-      } else {
-        setTimedRunning((prev) => !prev);
+        await player.seekTo(0);
       }
+
+      if (
+        epoch !== operationEpoch.current ||
+        AppState.currentState !== 'active'
+      ) {
+        return;
+      }
+
+      player.play();
+
+    } catch {
+      setFailed(true);
+    } finally {
+      transportBusy.current = false;
     }
   };
 
-  const handleSkip = (deltaSec: number) => {
-    Haptics.selectionAsync().catch(() => {});
-    const target = Math.max(0, Math.min(totalSeconds, elapsedSeconds + deltaSec));
-    if (hasRealAudio) {
-      Promise.resolve(player.seekTo(target)).catch(() => {});
-    } else {
-      setTimedElapsed(target);
+  const handleSkip = async (
+    deltaSeconds: number
+  ) => {
+    if (!canPlay || transportBusy.current) return;
+
+    transportBusy.current = true;
+
+    try {
+      await player.seekTo(
+        Math.max(
+          0,
+          Math.min(
+            totalSeconds,
+            elapsedSeconds + deltaSeconds
+          )
+        )
+      );
+    } catch {
+      setFailed(true);
+    } finally {
+      transportBusy.current = false;
     }
   };
 
-  const progressPct = totalSeconds > 0 ? Math.min(100, (elapsedSeconds / totalSeconds) * 100) : 0;
+  const progress = totalSeconds > 0
+    ? Math.min(
+        100,
+        elapsedSeconds / totalSeconds * 100
+      )
+    : 0;
 
-  if (eyesClosedDim) {
+  if (eyesClosedDim && !failed && !status.error) {
     return (
       <Pressable
         onPress={() => setEyesClosedDim(false)}
         accessibilityRole="button"
-        accessibilityLabel="Tap anywhere to wake screen from eyes-closed mode"
+        accessibilityLabel="Return to audio controls"
         style={styles.dimOverlay}
       >
-        <Text style={styles.dimClock}>{formatClock(remainingSeconds)}</Text>
+        <Text style={styles.dimClock}>
+          {formatClock(remainingSeconds)}
+        </Text>
+
         <Text style={styles.dimNote}>
-          {isPlaying ? 'Eyes-closed mode · tap anywhere to brighten' : 'Paused · tap to wake'}
+          {status.playing
+            ? 'Listening. Tap to show controls.'
+            : 'Paused. Tap to show controls.'}
         </Text>
       </Pressable>
     );
@@ -197,78 +275,122 @@ function RecordedAudioPlayer({
     <View style={styles.wrapper}>
       <View style={styles.headerBlock}>
         <Text style={styles.eyebrow}>
-          {hasRealAudio ? 'AUDIO SANCTUARY' : 'GUIDED TEXT PRACTICE'}
+          GUIDED LISTENING
         </Text>
-        <Text style={styles.title}>{track.title}</Text>
-        {!hasRealAudio && (
-          <Text style={styles.cueText}>
-            Follow the on-screen prompts. This practice does not yet contain a voice recording.
-          </Text>
-        )}
+
+        <Text style={styles.title}>
+          {track.title}
+        </Text>
+
+        <Text style={styles.cueText}>
+          {failed || status.error
+            ? 'The recording is unavailable. You can continue using the text practice.'
+            : !canPlay
+              ? 'Preparing your recording...'
+              : 'Listen at your own pace. You can pause or leave whenever you wish.'}
+        </Text>
       </View>
 
-      <Text style={styles.timer}>{formatClock(remainingSeconds)}</Text>
+      <Text style={styles.timer}>
+        {formatClock(remainingSeconds)}
+      </Text>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+        <View style={[
+          styles.progressFill,
+          { width: progress + '%' },
+        ]} />
       </View>
 
       <View style={styles.cueCard}>
-        <Text style={styles.cueText}>{track.cues[activeCueIndex]?.text ?? ''}</Text>
+        <Text style={styles.cueText}>
+          {track.cues[activeCueIndex]?.text ?? ''}
+        </Text>
       </View>
 
-      {/* Transport Controls (48px+ targets) */}
       <View style={styles.controlsRow}>
         <Pressable
-          onPress={() => handleSkip(-15)}
           accessibilityRole="button"
           accessibilityLabel="Rewind 15 seconds"
+          accessibilityState={{ disabled: !canPlay }}
+          disabled={!canPlay}
+          onPress={() => void handleSkip(-15)}
           style={styles.iconControl}
         >
-          <Feather name="rotate-ccw" size={20} color={Palette.night.text} />
-          <Text style={styles.skipLabel}>15s</Text>
+          <Feather
+            name="rotate-ccw"
+            size={20}
+            color={Palette.night.text}
+          />
+          <Text style={styles.skipLabel}>
+            15s
+          </Text>
         </Pressable>
 
         <Pressable
-          onPress={handleTogglePlay}
           accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          style={styles.playControl}
+          accessibilityLabel={
+            status.playing ? 'Pause' : 'Play'
+          }
+          accessibilityState={{ disabled: !canPlay }}
+          disabled={!canPlay}
+          onPress={() => void handleTogglePlay()}
+          style={[
+            styles.playControl,
+            { opacity: canPlay ? 1 : 0.5 },
+          ]}
         >
           <Feather
-            name={isPlaying ? 'pause' : 'play'}
+            name={status.playing ? 'pause' : 'play'}
             size={26}
             color={Palette.night.onPrimary}
           />
         </Pressable>
 
         <Pressable
-          onPress={() => handleSkip(15)}
           accessibilityRole="button"
           accessibilityLabel="Forward 15 seconds"
+          accessibilityState={{ disabled: !canPlay }}
+          disabled={!canPlay}
+          onPress={() => void handleSkip(15)}
           style={styles.iconControl}
         >
-          <Feather name="rotate-cw" size={20} color={Palette.night.text} />
-          <Text style={styles.skipLabel}>15s</Text>
+          <Feather
+            name="rotate-cw"
+            size={20}
+            color={Palette.night.text}
+          />
+
+          <Text style={styles.skipLabel}>
+            15s
+          </Text>
         </Pressable>
       </View>
 
-      {hasRealAudio && (
+      {canPlay && (
         <Pressable
-          onPress={() => {
-            Haptics.selectionAsync().catch(() => {});
-            setEyesClosedDim(true);
-          }}
           accessibilityRole="button"
+          accessibilityLabel="Dim screen for listening"
+          onPress={() => setEyesClosedDim(true)}
           style={styles.dimToggle}
         >
-          <Feather name="eye-off" size={16} color={Palette.night.primaryTonalText} />
-          <Text style={styles.dimToggleText}>Dim screen for listening</Text>
+          <Text style={styles.dimToggleText}>
+            Dim screen for listening
+          </Text>
         </Pressable>
       )}
 
       <PrimaryButton
-        label={isFinished ? completeLabel : inProgressLabel}
+        label="Read instead"
+        onPress={onReadInstead}
+      />
+
+      <PrimaryButton
+        label={
+          isFinished
+            ? completeLabel
+            : inProgressLabel
+        }
         onPress={onComplete}
       />
     </View>
@@ -403,16 +525,26 @@ const styles = StyleSheet.create({
  * Text practices use the V2 guided engine.
  * Recorded assets retain the native audio implementation.
  */
-export function AudioRescuePlayer(
+
+function PracticeMedia(
   props: AudioRescuePlayerProps
 ) {
   const { track } = props;
 
-  if (track.audioUri) {
+  const [readInstead, setReadInstead] =
+    useState(false);
+
+  const source = bundledRecording(track.id);
+
+  if (
+    source !== undefined &&
+    !readInstead
+  ) {
     return (
       <RecordedAudioPlayer
-        key={track.id}
         {...props}
+        source={source}
+        onReadInstead={() => setReadInstead(true)}
       />
     );
   }
@@ -420,7 +552,10 @@ export function AudioRescuePlayer(
   return (
     <GuidedPracticePlayer
       key={track.id}
-      practice={fromLegacyPractice(track)}
+      practice={fromLegacyPractice({
+        ...track,
+        audioUri: null,
+      })}
       source={props.practiceSource ?? 'journey'}
       parentSessionId={props.parentSessionId}
       onExit={props.onComplete}
@@ -428,6 +563,17 @@ export function AudioRescuePlayer(
         props.inProgressLabel ??
         'Return to options'
       }
+    />
+  );
+}
+
+export function AudioRescuePlayer(
+  props: AudioRescuePlayerProps
+) {
+  return (
+    <PracticeMedia
+      key={props.track.id}
+      {...props}
     />
   );
 }

@@ -1,3 +1,4 @@
+import { validLegalUrl } from '../content/membershipPolicy';
 import { STILLWATER_ROUTES } from '../content/stillwaterRoutes';
 import { PreparationFeedback } from './PreparationFeedback';
 import { PreparationWindows } from './PreparationWindows';
@@ -578,6 +579,54 @@ export function PlanSettingsScreen({
             onPress={() =>
               router.push(STILLWATER_ROUTES.privacyData)
             } />
+        </V2Card>
+
+        <V2Card mode={mode}>
+          <V2Text mode={mode} variant="section">
+            Legal and support
+          </V2Text>
+
+          {[
+            {
+              label: 'Privacy policy',
+              url: process.env.EXPO_PUBLIC_PRIVACY_URL,
+            },
+            {
+              label: 'Terms of use',
+              url: process.env.EXPO_PUBLIC_TERMS_URL,
+            },
+            {
+              label: 'Support',
+              url: process.env.EXPO_PUBLIC_SUPPORT_URL,
+            },
+          ].map(item => (
+            <V2Button key={item.label}
+              mode={mode}
+              tone="quiet"
+              icon="external-link"
+              label={item.label}
+              disabled={!validLegalUrl(item.url)}
+              onPress={() => {
+                const url = item.url;
+
+                if (url && validLegalUrl(url)) {
+                  void Linking.openURL(url).catch(() => {
+                    Alert.alert(
+                      'Unable to open page',
+                      'Please try again later.'
+                    );
+                  });
+                }
+              }} />
+          ))}
+        </V2Card>
+
+        <V2Card mode={mode}>
+          <V2Text mode={mode} variant="secondary">
+            Stillwater offers self-help and spiritual
+            reflection. It is not medical treatment
+            or an emergency service.
+          </V2Text>
         </V2Card>
 
         {/* 5. Care & Preferences */}

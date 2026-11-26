@@ -1,3 +1,4 @@
+import { hasBundledRecording } from '../content/bundledRecordings';
 
 import {
   newRecoverySessionId,
@@ -371,7 +372,7 @@ export default function PauseModal() {
           {FREE_TRACK && (
             <V2ActionRow
               mode={mode}
-              icon={FREE_TRACK.audioUri
+              icon={hasBundledRecording(FREE_TRACK.id)
                 ? 'headphones' : 'book-open'}
               label="Stay with me a little longer"
               description="3-minute guided practice"

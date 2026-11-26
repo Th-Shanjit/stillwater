@@ -1,3 +1,4 @@
+import { hasBundledRecording } from '../../content/bundledRecordings';
 import { StillwaterV2 } from '../../theme/stillwaterV2';
 import { PrivacyModal } from '../../components/PrivacyCover';
 import { permitsContent } from '../../content/membershipPolicy';
@@ -226,7 +227,7 @@ export default function LibraryScreen() {
                     style={({ pressed }) => [styles.rowBtn, pressed && { opacity: 0.72 }]}
                   >
                     <Feather
-                      name={locked ? 'lock' : track.audioUri ? 'headphones' : 'book-open'}
+                      name={locked ? 'lock' : hasBundledRecording(track.id) ? 'headphones' : 'book-open'}
                       size={Sizes.icon}
                       color={locked ? StillwaterV2.day.muted : StillwaterV2.day.primary}
                     />
@@ -239,7 +240,7 @@ export default function LibraryScreen() {
                           </View>
                         )}
                       </View>
-                      <Text style={styles.rowSub}>{track.subtitle}{track.audioUri ? ' · Audio' : ' · Guided text'}</Text>
+                      <Text style={styles.rowSub}>{track.subtitle}{hasBundledRecording(track.id) ? ' · Audio' : ' · Guided text'}</Text>
                     </View>
                     <Feather name="chevron-right" size={18} color={StillwaterV2.day.muted} />
                   </Pressable>

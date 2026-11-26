@@ -1,34 +1,37 @@
 {
-  "cli": {
-    "version": ">= 16.0.0",
-    "appVersionSource": "remote"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "simulator": false
-      }
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "autoIncrement": true
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
-      },
-      "android": {
-        "track": "internal"
-      }
-    }
-  }
+    "cli":  {
+                "version":  "\u003e= 16.0.0",
+                "appVersionSource":  "remote"
+            },
+    "build":  {
+                  "development":  {
+                                      "developmentClient":  true,
+                                      "distribution":  "internal",
+                                      "ios":  {
+                                                  "simulator":  false
+                                              },
+                                      "environment":  "development"
+                                  },
+                  "preview":  {
+                                  "distribution":  "internal",
+                                  "android":  {
+                                                  "buildType":  "apk"
+                                              },
+                                  "environment":  "preview"
+                              },
+                  "production":  {
+                                     "autoIncrement":  true,
+                                     "environment":  "production"
+                                 }
+              },
+    "submit":  {
+                   "production":  {
+                                      "ios":  {
+                                                  "ascAppId":  "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
+                                              },
+                                      "android":  {
+                                                      "track":  "internal"
+                                                  }
+                                  }
+               }
 }

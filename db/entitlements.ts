@@ -67,6 +67,14 @@ function getPlatformApiKey(): string | null {
   return key.trim();
 }
 
+export function newPurchasesEnabled(): boolean {
+  return (
+    process.env.EXPO_PUBLIC_PURCHASES_ENABLED === 'true' &&
+    validLegalUrl(process.env.EXPO_PUBLIC_PRIVACY_URL) &&
+    validLegalUrl(process.env.EXPO_PUBLIC_TERMS_URL)
+  );
+}
+
 function hasEntitlementInInfo(info: CustomerInfo | null | undefined): boolean {
   return Boolean(info?.entitlements?.active?.[PLUS_ENTITLEMENT_ID]);
 }
@@ -233,6 +241,14 @@ export interface AvailablePlans {
 }
 
 export async function getAvailablePlans(): Promise<AvailablePlans> {
+  if (!newPurchasesEnabled()) {
+    return {
+      annual: null,
+      monthly: null,
+      lifetime: null,
+      isLiveStore: false,
+    };
+  }
   if (!configured) {
     await initEntitlements();
   }
@@ -277,6 +293,13 @@ export async function purchasePlan(
   cancelled?: boolean;
   error?: string;
 }> {
+  if (!newPurchasesEnabled()) {
+    return {
+      success: false,
+      error: 'New purchases are not enabled in this build.',
+    };
+  }
+
   if (transactionBusy) {
     return {
       success: false,
@@ -377,6 +400,7 @@ export async function restoreStillwaterPurchases():
  */
 
 export function storeOffersEnabled(): boolean {
+  if (!newPurchasesEnabled()) return false;
   const platform =
     Platform.OS === 'android'
       ? 'android'
